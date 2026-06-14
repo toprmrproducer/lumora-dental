@@ -75,3 +75,16 @@ is a CSS variant and is fine to keep.)
 - GitHub: private repo `toprmrproducer/lumora-dental`.
 - Netlify: site `lumora-dental-blue.netlify.app` created but deploy BLOCKED (account credits exhausted).
 - `ONESHOT_PROMPT.md` = comprehensive prompt to regenerate this site from scratch with [PLACEHOLDERS].
+
+## Conversion + content updates (14 Jun 2026)
+- Phone is `+91 93007512816` everywhere (display + tel: + wa.me 9193007512816).
+- Hero **lead-capture form** (`.lead-form_card`, "Book a visit", name+phone) on both variants. On
+  submit it opens a prefilled WhatsApp to the clinic and shows a success state. ALWAYS visible (not
+  gated by reveal). Handler `leadSubmit()` injected before </body> on index pages; CSS in lumora.css.
+- Closing CTA (`.section_cta`) now has a photo background (`gen_about-hero-image.jpg`) + dark overlay
+  (teal vs blue per variant); footer has an accent top-border. Fixes the "bland footer".
+- All em dashes removed from copy/titles (titles use `|`).
+- Fixed a regression: the 404 footer + navbar anchors were mangled to `` `4.html `` by a bad perl
+  backref; both restored to `404.html`.
+- `ONESHOT_PROMPT.md` expanded to ~1080 lines (full design system, component code, full CSS sheet,
+  responsive rules, all page copy, full legal text, image prompts, variant recipe, QA, deploy).
