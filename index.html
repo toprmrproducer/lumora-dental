@@ -328,7 +328,8 @@
                         <div class="hero_overlay is-gradient"></div>
                     </div>
                     <div data-w-id="e790d2ce-f71a-82ed-935b-8c0db2fa91f1" class="hero-image_wrap">
-                        <img src="assets/img/gen_dentist-examining-patients-teeth-close-up_1.jpg" loading="lazy" sizes="(max-width: 2880px) 100vw, 2880px" srcset="assets/img/gen_dentist-examining-patients-teeth-close-up_1.jpg 500w, assets/img/gen_dentist-examining-patients-teeth-close-up_1.jpg 800w, assets/img/gen_dentist-examining-patients-teeth-close-up_1.jpg 1080w, assets/img/gen_dentist-examining-patients-teeth-close-up_1.jpg 1600w, assets/img/gen_dentist-examining-patients-teeth-close-up_1.jpg 2000w, assets/img/gen_dentist-examining-patients-teeth-close-up_1.jpg 2600w, assets/img/gen_dentist-examining-patients-teeth-close-up_1.jpg 2880w" alt="Home hero image" class="home-hero_image hide-on-mobile"/>
+                        <img src="assets/img/gen_dentist-examining-patients-teeth-close-up_1.jpg" loading="lazy" sizes="(max-width: 2880px) 100vw, 2880px" srcset="assets/img/gen_dentist-examining-patients-teeth-close-up_1.jpg 500w, assets/img/gen_dentist-examining-patients-teeth-close-up_1.jpg 800w, assets/img/gen_dentist-examining-patients-teeth-close-up_1.jpg 1080w, assets/img/gen_dentist-examining-patients-teeth-close-up_1.jpg 1600w, assets/img/gen_dentist-examining-patients-teeth-close-up_1.jpg 2000w, assets/img/gen_dentist-examining-patients-teeth-close-up_1.jpg 2600w, assets/img/gen_dentist-examining-patients-teeth-close-up_1.jpg 2880w" alt="Home hero image" class="home-hero_image hide-on-mobile hero-carousel-img is-active"/>
+                        <img src="assets/img/gen_hero-2.jpg" loading="lazy" alt="" class="home-hero_image hide-on-mobile hero-carousel-img"/><img src="assets/img/gen_hero-3.jpg" loading="lazy" alt="" class="home-hero_image hide-on-mobile hero-carousel-img"/><img src="assets/img/gen_hero-4.jpg" loading="lazy" alt="" class="home-hero_image hide-on-mobile hero-carousel-img"/>
                     </div>
                 </header>
                 <section class="section_story">
@@ -1958,5 +1959,21 @@
             }
         </script>
 
+    
+        <script>
+            (function(){
+                function startHeroCarousel(){
+                    var imgs=document.querySelectorAll('.hero-carousel-img');
+                    if(imgs.length<2) return;
+                    var i=0;
+                    setInterval(function(){
+                        imgs[i].classList.remove('is-active');
+                        i=(i+1)%imgs.length;
+                        imgs[i].classList.add('is-active');
+                    },5000);
+                }
+                document.readyState!=='loading'?startHeroCarousel():document.addEventListener('DOMContentLoaded',startHeroCarousel);
+            })();
+        </script>
     </body>
 </html>

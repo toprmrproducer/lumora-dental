@@ -9096,3 +9096,7 @@ figure {
 .section_cta{position:relative;background-image:linear-gradient(115deg, rgba(6,24,46,.93), rgba(6,24,46,.72)), url('../img/gen_about-hero-image.jpg');background-size:cover;background-position:center;}
 .footer{border-top:3px solid var(--primitive-color--primary-500,#2f80ff);}
 footer{border-top:3px solid var(--primitive-color--primary-500,#2f80ff);}
+
+/* ===== Hero rotating carousel ===== */
+.hero-carousel-img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:0;transition:opacity 1.4s ease;}
+.hero-carousel-img.is-active{opacity:1;}

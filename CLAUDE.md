@@ -88,3 +88,9 @@ is a CSS variant and is fine to keep.)
   backref; both restored to `404.html`.
 - `ONESHOT_PROMPT.md` expanded to ~1080 lines (full design system, component code, full CSS sheet,
   responsive rules, all page copy, full legal text, image prompts, variant recipe, QA, deploy).
+
+## Hero carousel + form placement fix (14 Jun 2026)
+- Hero background is a 4-image rotating carousel (`.hero-carousel-img`, crossfade every 5s): the
+  original hero + `gen_hero-2/3/4.jpg` (new Magnific gpt-2 images). CSS + cycler JS in place, both variants.
+- Lead form was mistakenly inserted in the navbar; moved into `home-hero_content` right after the hero
+  Book Appointment button (anchored on data-w-id 123dbd0a...). Now stacks: headline, button, form (left).
