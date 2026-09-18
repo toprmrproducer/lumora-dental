@@ -65,6 +65,8 @@ export default function App() {
   const [prompt, setPrompt] = useState("");
   const [promptOverridden, setPromptOverridden] = useState(false);
   const [promptState, setPromptState] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [cancellingUid, setCancellingUid] = useState<string | null>(null);
+  const [cancelError, setCancelError] = useState("");
 
   const active = useMemo(
     () => calls.find((c) => c.id === activeId) || null,
@@ -190,8 +192,21 @@ export default function App() {
   }
 
   async function cancelBooking(uid: string) {
-    await api(`/api/bookings/${uid}/cancel`, { method: "POST" });
-    loadDesk();
+    if (!window.confirm("Cancel this booking on Cal.com? This cannot be undone.")) return;
+    setCancellingUid(uid);
+    setCancelError("");
+    try {
+      const res = await api(`/api/bookings/${uid}/cancel`, { method: "POST" });
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({ error: "Cancel failed" }));
+        setCancelError(json.error || "Cancel failed — try again in a moment.");
+      }
+    } catch {
+      setCancelError("Network error — the booking was not cancelled.");
+    } finally {
+      setCancellingUid(null);
+      loadDesk();
+    }
   }
 
   if (!user) {
@@ -260,6 +275,28 @@ export default function App() {
         />
       </div>
 
+      <div className="grid gap-3 p-5 md:grid-cols-[1fr_1fr_240px]">
+        <ChartCard title="Calls — last 14 days">
+          <CallsBars calls={calls} />
+        </ChartCard>
+        <ChartCard title="Outcomes">
+          <OutcomeDonut calls={calls} />
+        </ChartCard>
+        <ChartCard title="Conversion">
+          <div className="h-full grid place-items-center">
+            <div className="text-center">
+              <p className="text-5xl font-semibold text-accent">{stats?.conversion ?? 0}%</p>
+              <p className="text-xs text-muted mt-2">
+                of calls ended booked
+              </p>
+              <p className="text-xs text-muted mt-1">
+                {patients.length} contact{patients.length === 1 ? "" : "s"} on file
+              </p>
+            </div>
+          </div>
+        </ChartCard>
+      </div>
+
       <div className="px-5 flex flex-wrap gap-2 mb-4">
         {(
           [
@@ -305,11 +342,17 @@ export default function App() {
                     </td>
                     <td className="p-3">
                       {b.status !== "cancelled" ? (
-                        <Button variant="ghost" onClick={() => cancelBooking(b.uid)}>
+                        <Button
+                          variant="ghost"
+                          disabled={cancellingUid === b.uid}
+                          onClick={() => cancelBooking(b.uid)}
+                        >
                           <CalendarX className="w-4 h-4 mr-1" />
-                          Cancel
+                          {cancellingUid === b.uid ? "Cancelling…" : "Cancel"}
                         </Button>
-                      ) : null}
+                      ) : (
+                        <span className="text-xs text-muted">cancelled</span>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -323,6 +366,9 @@ export default function App() {
               </tbody>
             </table>
           </div>
+          {cancelError ? (
+            <p className="text-sm text-missed mt-3">{cancelError}</p>
+          ) : null}
         </div>
       ) : tab === "crm" ? (
         <div className="px-5 pb-10 space-y-3">
@@ -488,6 +534,95 @@ export default function App() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function ChartCard({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="rounded-xl border border-line bg-panel p-4">
+      <p className="text-[11px] uppercase tracking-wider text-muted mb-3">{title}</p>
+      <div className="h-[130px]">{children}</div>
+    </div>
+  );
+}
+
+function CallsBars({ calls }: { calls: Call[] }) {
+  const days: { label: string; count: number }[] = [];
+  for (let i = 13; i >= 0; i--) {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    const key = d.toISOString().slice(0, 10);
+    days.push({
+      label: d.toLocaleDateString("en-GB", { day: "numeric", month: "short" }),
+      count: calls.filter((c) => c.startedAt.slice(0, 10) === key).length,
+    });
+  }
+  const max = Math.max(1, ...days.map((d) => d.count));
+  return (
+    <div className="flex items-end gap-1.5 h-full">
+      {days.map((d, i) => (
+        <div key={i} className="flex-1 flex flex-col items-center gap-1 h-full justify-end" title={`${d.label}: ${d.count}`}>
+          <div
+            className={`w-full rounded-t ${d.count ? "bg-accent" : "bg-line"}`}
+            style={{ height: `${(d.count / max) * 82}%`, minHeight: d.count ? 4 : 2 }}
+          />
+          <span className="text-[9px] text-muted">{i % 2 === 0 ? d.label.split(" ")[0] : ""}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function OutcomeDonut({ calls }: { calls: Call[] }) {
+  const counts = {
+    booked: calls.filter((c) => c.outcome === "booked").length,
+    not_booked: calls.filter((c) => c.outcome === "not_booked").length,
+    cancelled: calls.filter((c) => c.outcome === "cancelled").length,
+    unknown: calls.filter((c) => c.outcome === "unknown" || c.status === "live").length,
+  };
+  const colors: Record<string, string> = {
+    booked: "#34b39a",
+    not_booked: "#e05d5d",
+    cancelled: "#8a8fa3",
+    unknown: "#24a3b1",
+  };
+  const total = Math.max(1, calls.length);
+  const R = 42;
+  const C = 2 * Math.PI * R;
+  let offset = 0;
+  return (
+    <div className="flex items-center gap-4 h-full">
+      <svg viewBox="0 0 110 110" className="w-[104px] h-[104px] -rotate-90">
+        <circle cx="55" cy="55" r={R} fill="none" stroke="#232a33" strokeWidth="14" />
+        {Object.entries(counts).map(([k, v]) => {
+          const seg = (v / total) * C;
+          const el = v ? (
+            <circle
+              key={k}
+              cx="55"
+              cy="55"
+              r={R}
+              fill="none"
+              stroke={colors[k]}
+              strokeWidth="14"
+              strokeDasharray={`${seg} ${C - seg}`}
+              strokeDashoffset={-offset}
+            />
+          ) : null;
+          offset += seg;
+          return el;
+        })}
+      </svg>
+      <div className="text-xs space-y-1.5">
+        {Object.entries(counts).map(([k, v]) => (
+          <p key={k} className="flex items-center gap-2">
+            <span className="inline-block w-2.5 h-2.5 rounded-sm" style={{ background: colors[k] }} />
+            <span className="text-muted capitalize">{k.replace("_", " ")}</span>
+            <span className="font-medium">{v}</span>
+          </p>
+        ))}
+      </div>
     </div>
   );
 }

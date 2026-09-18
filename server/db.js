@@ -87,10 +87,15 @@ export function appendTranscript(id, entry) {
   const call = state.calls.find((c) => c.id === id);
   if (!call) return null;
   const last = call.transcript[call.transcript.length - 1];
-  if (last && last.role === entry.role && entry.partial) {
+  // Merge partials of the same turn only while the turn is actually ongoing —
+  // after an interruption the model restarts the sentence, and merging that
+  // into the old entry produced duplicated text like "Hey, this is Maya at
+  // WestsideHey, this is Maya at Westside Dentist".
+  const fresh = last && Date.now() - new Date(last.at).getTime() < 4000;
+  if (last && last.role === entry.role && fresh && entry.partial) {
     last.text = (last.text || "") + entry.text;
     last.at = entry.at;
-  } else if (last && last.role === entry.role && !entry.partial && last.partial) {
+  } else if (last && last.role === entry.role && fresh && !entry.partial && last.partial) {
     last.text = (last.text || "") + entry.text;
     last.partial = false;
     last.at = entry.at;

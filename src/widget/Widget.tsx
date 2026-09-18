@@ -122,31 +122,43 @@ export function Widget() {
         const next = Math.min(rms * 6, 1);
         const mayaLevel = Number.isFinite(player.level) ? Math.min(player.level, 1) : 0;
         levelRef.current = Math.max(levelRef.current * 0.6, next, mayaLevel);
-        // Keep upstream audio flowing during model speech. Two consecutive voiced
-        // frames are enough to cut local playback before remote VAD catches up.
-        if (player.isPlaying() && rms > 0.035) {
-          bargeFramesRef.current += 1;
-          if (bargeFramesRef.current === 2) {
-            suppressAudioUntilRef.current = Date.now() + 900;
-            player.interrupt();
-            setStatus("I’m listening.");
-            ws.send(JSON.stringify({ type: "barge_in" }));
+        // HALF-DUPLEX GUARD: while Maya is speaking, her microphone feed is
+        // NOT forwarded — room noise, breath and speaker echo can reach the
+        // model, whose VAD then cancels her turn (the "repeated greeting"
+        // bug). Only a genuinely loud, sustained voice (3 frames above the
+        // barge threshold) may interrupt her.
+        if (player.isPlaying()) {
+          if (rms > 0.12) {
+            bargeFramesRef.current += 1;
+            if (bargeFramesRef.current === 3) {
+              suppressAudioUntilRef.current = Date.now() + 500;
+              player.interrupt();
+              setStatus("I’m listening.");
+              ws.send(JSON.stringify({ type: "barge_in" }));
+              callerSpeakingRef.current = true;
+              silenceFramesRef.current = 0;
+              ws.send(JSON.stringify({ type: "activity_start" }));
+            }
+          } else {
+            bargeFramesRef.current = 0;
           }
-        } else if (rms < 0.018) {
-          bargeFramesRef.current = 0;
+          return;
         }
-        if (rms > 0.028 && !callerSpeakingRef.current) {
+
+        // Maya is quiet: noise-gated caller VAD. Breath/fan noise (~0.03 RMS)
+        // must not read as speech — real talk is well above 0.06 here.
+        if (rms > 0.06 && !callerSpeakingRef.current) {
           callerSpeakingRef.current = true;
           silenceFramesRef.current = 0;
           ws.send(JSON.stringify({ type: "activity_start" }));
-        } else if (callerSpeakingRef.current && rms < 0.014) {
+        } else if (callerSpeakingRef.current && rms < 0.025) {
           silenceFramesRef.current += 1;
-          if (silenceFramesRef.current >= 7) {
+          if (silenceFramesRef.current >= 12) {
             callerSpeakingRef.current = false;
             silenceFramesRef.current = 0;
             ws.send(JSON.stringify({ type: "activity_end" }));
           }
-        } else if (rms >= 0.014) {
+        } else if (rms >= 0.025) {
           silenceFramesRef.current = 0;
         }
         const pcm = downsampleTo16k(input, rec.sampleRate);
