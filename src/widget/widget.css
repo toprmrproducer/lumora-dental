@@ -218,3 +218,52 @@
     font-size: 11px;
   }
 }
+
+/* ---- CSS voice orb (replaces the WebGL shader orb: nothing to glitch) ---- */
+.vorb {
+  --vorb-lvl: 0;
+  --vorb-hue: 170;
+  position: relative;
+  width: 230px;
+  height: 230px;
+  transform: scale(calc(1 + var(--vorb-lvl) * 0.05));
+  transition: transform 140ms ease-out;
+}
+/* the ring: a conic gradient masked to an annulus, slowly rotating */
+.vorb-spin {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: conic-gradient(
+    from 200deg,
+    hsl(var(--vorb-hue) 75% 62% / 0.95),
+    hsl(calc(var(--vorb-hue) + 45) 85% 55%),
+    hsl(calc(var(--vorb-hue) - 15) 80% 40% / 0.55),
+    hsl(var(--vorb-hue) 75% 62% / 0.95)
+  );
+  -webkit-mask: radial-gradient(closest-side, transparent calc(100% - 11px), #000 calc(100% - 10px));
+  mask: radial-gradient(closest-side, transparent calc(100% - 11px), #000 calc(100% - 10px));
+  filter: blur(5px) saturate(1.25);
+  animation: vorb-rotate 16s linear infinite;
+}
+/* soft glow that swells with voice level */
+.vorb-glow {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: radial-gradient(
+    closest-side,
+    transparent 55%,
+    hsl(var(--vorb-hue) 90% 60% / calc(0.10 + var(--vorb-lvl) * 0.30)) 78%,
+    transparent 96%
+  );
+  filter: blur(10px);
+  opacity: calc(0.55 + var(--vorb-lvl) * 0.45);
+  transition: opacity 120ms linear;
+}
+@keyframes vorb-rotate {
+  to { transform: rotate(360deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .vorb-spin { animation: none; }
+}

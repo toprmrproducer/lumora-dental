@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from "react";
-import { VoicePoweredOrb } from "@/components/ui/voice-powered-orb";
 import { PcmPlayer, base64ToInt16, downsampleTo16k, int16ToBase64 } from "./audio";
 
 type Phase = "bubble" | "mic" | "connecting" | "live" | "error";
@@ -209,6 +208,7 @@ export function Widget() {
   useEffect(() => {
     if (phase !== "live") return;
     let last = "";
+    let pendingXY: { x: number; y: number } | null = null;
     let timer: number | null = null;
     const describeAt = (x: number, y: number): string => {
       const el = document.elementFromPoint(x, y) as HTMLElement | null;
@@ -225,17 +225,29 @@ export function Widget() {
       }
       return (el.textContent || "").trim().replace(/\s+/g, " ").slice(0, 120);
     };
-    const onMove = (e: MouseEvent) => {
-      if (timer) return;
-      timer = window.setTimeout(() => {
-        timer = null;
-        const text = describeAt(e.clientX, e.clientY);
-        if (!text || text === last) return;
+    // Maya freezes if a context note arrives mid-sentence (it counts as a new
+    // user turn), so notes are only sent while she is quiet. A note she misses
+    // stays pending and goes out on the first move or gap once she stops.
+    const flush = () => {
+      timer = null;
+      if (!pendingXY) return;
+      if (playerRef.current?.isPlaying()) {
+        if (!timer) timer = window.setTimeout(flush, 250);
+        return;
+      }
+      const text = describeAt(pendingXY.x, pendingXY.y);
+      if (text && text !== last) {
         last = text;
         wsRef.current?.send(
           JSON.stringify({ type: "pointer", text: text.slice(0, 400) })
         );
-      }, 300);
+      }
+      pendingXY = null;
+    };
+    const onMove = (e: MouseEvent) => {
+      pendingXY = { x: e.clientX, y: e.clientY };
+      if (timer) return;
+      timer = window.setTimeout(flush, 300);
     };
     window.addEventListener("mousemove", onMove, { passive: true });
     return () => {
@@ -271,12 +283,18 @@ export function Widget() {
             : "Connecting"}
       </div>
       <div className="mola-orb-wrap">
-        <VoicePoweredOrb
-          enableVoiceControl={false}
-          externalLevel={level}
-          hue={hue}
-          maxHoverIntensity={1}
-        />
+        <div
+          className="vorb"
+          style={
+            {
+              "--vorb-lvl": Math.min(level, 1).toFixed(3),
+              "--vorb-hue": hue.toFixed(1),
+            } as React.CSSProperties
+          }
+        >
+          <div className="vorb-spin" />
+          <div className="vorb-glow" />
+        </div>
       </div>
       <div className="mola-caption">Voice booking · Walk-in appointment</div>
       <div className="mola-status">{error || status}</div>
