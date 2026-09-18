@@ -22,7 +22,13 @@ export function Widget() {
   const suppressAudioUntilRef = useRef(0);
 
   useEffect(() => {
-    const id = window.setInterval(() => setLevel(levelRef.current * 0.92), 80);
+    // Single smoothed updater: level decays, hue slides teal→warm with
+    // activity. Never set these from individual audio packets.
+    const id = window.setInterval(() => {
+      setLevel(levelRef.current * 0.92);
+      levelRef.current *= 0.92;
+      setHue(170 - Math.min(levelRef.current, 1) * 150);
+    }, 80);
     return () => window.clearInterval(id);
   }, []);
 
@@ -104,7 +110,12 @@ export function Widget() {
         const rms = Math.sqrt(sum / input.length);
         const next = Math.min(rms * 6, 1);
         levelRef.current = Math.max(levelRef.current * 0.6, next, player.level);
-        setHue(player.level > 0.08 ? 20 : 170);
+        if (rms > 0.028) {
+          levelRef.current = Math.max(levelRef.current, Math.min(rms * 6, 1));
+        }
+        if (player.level > 0.05) {
+          levelRef.current = Math.max(levelRef.current, Math.min(player.level, 1));
+        }
         // Keep upstream audio flowing during model speech. Two consecutive voiced
         // frames are enough to cut local playback before remote VAD catches up.
         if (player.isPlaying() && rms > 0.035) {
@@ -147,7 +158,6 @@ export function Widget() {
           const rate = /rate=(\d+)/.exec(msg.mimeType || "")?.[1];
           player.enqueue(base64ToInt16(msg.data), rate ? Number(rate) : 24000);
           levelRef.current = Math.max(levelRef.current, 0.55);
-          setHue(18);
         }
         if (msg.type === "transcript" && msg.role === "maya") {
           setStatus(msg.text);
@@ -216,7 +226,7 @@ export function Widget() {
       <div className="mola-orb-wrap">
         <VoicePoweredOrb
           enableVoiceControl={false}
-          externalLevel={Math.max(level, levelRef.current)}
+          externalLevel={level}
           hue={hue}
           maxHoverIntensity={1}
         />
