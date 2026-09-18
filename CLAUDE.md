@@ -4,6 +4,7 @@
 
 - Public static preview: `https://toprmrproducer.github.io/west-high-dentist/`.
 - Full local runtime: `http://127.0.0.1:8787`; protected records console: `/admin`.
+- `server/index.js` loads the project's ignored `.env` with override enabled, so inherited shell variables cannot silently reject the configured admin login.
 - Gemini Live is configured with explicit caller activity and `START_OF_ACTIVITY_INTERRUPTS`. The browser sends speech start and end signals; the PCM player stops all queued sources immediately when caller speech begins. Do not remove either layer or the agent and caller may speak at once.
 - GitHub Pages is static only. Keep Gemini, Cal.com and admin-session values only in server-side environment variables. Deploy the full runtime to a Node host before representing the Pages URL as a live voice deployment.
 

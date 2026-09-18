@@ -11,7 +11,9 @@ import * as cal from "./cal.js";
 import * as auth from "./auth.js";
 import { attachLiveSession } from "./gemini-live.js";
 
-dotenv.config();
+// The clinic's local runtime must prefer this project's ignored .env file over
+// inherited shell variables, otherwise an old admin session can reject its own credentials.
+dotenv.config({ override: true });
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.join(__dirname, "..");
