@@ -23,6 +23,7 @@ function setupPayload(model) {
       systemInstruction: { parts: [{ text: MAYA_SYSTEM_PROMPT }] },
       tools: LIVE_TOOLS,
       realtimeInputConfig: {
+        automaticActivityDetection: { disabled: true },
         activityHandling: "START_OF_ACTIVITY_INTERRUPTS",
       },
       inputAudioTranscription: {},
@@ -296,6 +297,15 @@ export async function attachLiveSession(clientWs, { timezone } = {}) {
           },
         })
       );
+    }
+    if (msg.type === "text" && msg.text) {
+      gemini.send(JSON.stringify({ realtimeInput: { text: String(msg.text).slice(0, 500) } }));
+    }
+    if (msg.type === "activity_start") {
+      gemini.send(JSON.stringify({ realtimeInput: { activityStart: {} } }));
+    }
+    if (msg.type === "activity_end") {
+      gemini.send(JSON.stringify({ realtimeInput: { activityEnd: {} } }));
     }
     if (msg.type === "barge_in") {
       // Browser playback has already stopped. Audio packets continue immediately,

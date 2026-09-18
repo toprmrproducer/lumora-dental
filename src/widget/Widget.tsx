@@ -17,6 +17,8 @@ export function Widget() {
   const streamRef = useRef<MediaStream | null>(null);
   const levelRef = useRef(0);
   const bargeFramesRef = useRef(0);
+  const silenceFramesRef = useRef(0);
+  const callerSpeakingRef = useRef(false);
   const suppressAudioUntilRef = useRef(0);
 
   useEffect(() => {
@@ -95,6 +97,20 @@ export function Widget() {
           }
         } else if (rms < 0.018) {
           bargeFramesRef.current = 0;
+        }
+        if (rms > 0.028 && !callerSpeakingRef.current) {
+          callerSpeakingRef.current = true;
+          silenceFramesRef.current = 0;
+          ws.send(JSON.stringify({ type: "activity_start" }));
+        } else if (callerSpeakingRef.current && rms < 0.014) {
+          silenceFramesRef.current += 1;
+          if (silenceFramesRef.current >= 7) {
+            callerSpeakingRef.current = false;
+            silenceFramesRef.current = 0;
+            ws.send(JSON.stringify({ type: "activity_end" }));
+          }
+        } else if (rms >= 0.014) {
+          silenceFramesRef.current = 0;
         }
         const pcm = downsampleTo16k(input, rec.sampleRate);
         ws.send(JSON.stringify({ type: "audio", data: int16ToBase64(pcm) }));
