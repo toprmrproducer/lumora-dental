@@ -33,10 +33,6 @@ export const VoicePoweredOrb: FC<VoicePoweredOrbProps> = ({
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const externalLevelRef = useRef(0);
   const hueRef = useRef(hue);
-  // Render-loop smoothing: targets arrive chunky (per audio packet), the GPU
-  // loop eases toward them so the orb glides instead of strobing.
-  const smoothHueRef = useRef(hue);
-  const smoothLevelRef = useRef(0);
 
   useEffect(() => {
     externalLevelRef.current = externalLevel ?? 0;
@@ -358,13 +354,7 @@ export const VoicePoweredOrb: FC<VoicePoweredOrbProps> = ({
         const dt = (t - lastTime) * 0.001;
         lastTime = t;
         program.uniforms.iTime.value = t * 0.001;
-
-        // Ease hue along the shortest arc and level with asymmetric attack/
-        // release so activity looks fluid instead of blinking.
-        let targetHue = hueRef.current;
-        let diff = ((targetHue - smoothHueRef.current + 540) % 360) - 180;
-        smoothHueRef.current = (smoothHueRef.current + diff * Math.min(1, dt * 5) + 360) % 360;
-        program.uniforms.hue.value = smoothHueRef.current;
+        program.uniforms.hue.value = hueRef.current;
 
         let voiceLevel = 0;
         if (useExternal) {
@@ -372,12 +362,6 @@ export const VoicePoweredOrb: FC<VoicePoweredOrbProps> = ({
         } else if (enableVoiceControl && isMicrophoneInitialized) {
           voiceLevel = analyzeAudio();
         }
-        const eased =
-          voiceLevel > smoothLevelRef.current
-            ? smoothLevelRef.current + (voiceLevel - smoothLevelRef.current) * Math.min(1, dt * 22)
-            : smoothLevelRef.current + (voiceLevel - smoothLevelRef.current) * Math.min(1, dt * 7);
-        smoothLevelRef.current = eased;
-        voiceLevel = eased;
 
         if (onVoiceDetected) onVoiceDetected(voiceLevel > 0.1);
 

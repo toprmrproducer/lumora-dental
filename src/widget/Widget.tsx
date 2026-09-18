@@ -25,9 +25,10 @@ export function Widget() {
     // Single smoothed updater: level decays, hue slides teal→warm with
     // activity. Never set these from individual audio packets.
     const id = window.setInterval(() => {
-      setLevel(levelRef.current * 0.92);
-      levelRef.current *= 0.92;
-      setHue(170 - Math.min(levelRef.current, 1) * 150);
+      const lvl = Number.isFinite(levelRef.current) ? Math.max(levelRef.current, 0) : 0;
+      levelRef.current = lvl * 0.92;
+      setLevel(lvl * 0.92);
+      setHue(170 - Math.min(lvl, 1) * 150);
     }, 80);
     return () => window.clearInterval(id);
   }, []);
@@ -106,16 +107,22 @@ export function Widget() {
         if (ws.readyState !== WebSocket.OPEN) return;
         const input = ev.inputBuffer.getChannelData(0);
         let sum = 0;
-        for (let i = 0; i < input.length; i++) sum += input[i] * input[i];
+        let clean = true;
+        for (let i = 0; i < input.length; i++) {
+          const s = input[i];
+          if (!Number.isFinite(s)) {
+            clean = false;
+            break;
+          }
+          sum += s * s;
+        }
+        // Muted tabs / some drivers emit NaN frames — never let those reach
+        // the level or the orb shader turns into a white rectangle.
+        if (!clean) return;
         const rms = Math.sqrt(sum / input.length);
         const next = Math.min(rms * 6, 1);
-        levelRef.current = Math.max(levelRef.current * 0.6, next, player.level);
-        if (rms > 0.028) {
-          levelRef.current = Math.max(levelRef.current, Math.min(rms * 6, 1));
-        }
-        if (player.level > 0.05) {
-          levelRef.current = Math.max(levelRef.current, Math.min(player.level, 1));
-        }
+        const mayaLevel = Number.isFinite(player.level) ? Math.min(player.level, 1) : 0;
+        levelRef.current = Math.max(levelRef.current * 0.6, next, mayaLevel);
         // Keep upstream audio flowing during model speech. Two consecutive voiced
         // frames are enough to cut local playback before remote VAD catches up.
         if (player.isPlaying() && rms > 0.035) {
@@ -147,8 +154,7 @@ export function Widget() {
         ws.send(JSON.stringify({ type: "audio", data: int16ToBase64(pcm) }));
       };
 
-      ws.onmessage = (ev) => {
-        const msg = JSON.parse(ev.data);
+      ws.onmessage = (ev) => {        const msg = JSON.parse(ev.data);
         if (msg.type === "ready") {
           setPhase("live");
           setStatus("Maya just picked up. Go ahead, talk like you would on the phone.");
