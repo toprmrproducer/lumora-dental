@@ -281,12 +281,12 @@ export function Widget() {
         className="mola-bubble"
         type="button"
         onClick={startCall}
-        aria-label="Click now and do shit. Start a voice booking with Maya."
+        aria-label="Book an appointment. Start a voice booking with Maya."
       >
         <span className="mola-orb-core" aria-hidden="true">
           <span className="mola-orb-shine" />
         </span>
-        <span className="mola-orb-prompt">Click now and do shit.</span>
+        <span className="mola-orb-prompt">Talk to our AI &amp; book a call</span>
       </button>
     );
   }
