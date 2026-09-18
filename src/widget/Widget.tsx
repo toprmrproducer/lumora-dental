@@ -212,6 +212,28 @@ export function Widget() {
       if (!el || el.closest(".mola-panel, .mola-bubble")) return "";
       const tagged = el.closest<HTMLElement>("[data-maya]");
       if (tagged) return tagged.dataset.maya || "";
+      // Images: use alt text, or humanise the filename ("gen_root-canal.jpg"
+      // -> "root canal"). Wrap in the nearest heading if the section has one.
+      const img = el.closest<HTMLElement>("figure")?.querySelector("img") || (el as HTMLImageElement).closest?.("img") || (el.tagName === "IMG" ? (el as HTMLImageElement) : null);
+      if (img) {
+        let what =
+          img.getAttribute("alt")?.trim() ||
+          (decodeURIComponent(img.src.split("/").pop() || "")
+            .replace(/\.(jpg|jpeg|png|webp|svg)(\?.*)?$/i, "")
+            .replace(/^(gen_|gen-|img_|image-)/i, "")
+            .replace(/-\d{3,}x\d{3,}/g, "")
+            .replace(/[-_]+/g, " ")
+            .trim());
+        const parent = img.closest("figure") || img.parentElement;
+        for (let node: HTMLElement | null = parent, depth = 0; node && depth < 5; depth++, node = node.parentElement) {
+          const head = node.querySelector<HTMLElement>("h1, h2, h3, h4");
+          if (head?.textContent?.trim()) {
+            what = what ? `${head.textContent.trim()} — image: ${what}` : head.textContent.trim();
+            break;
+          }
+        }
+        return what ? `an image of ${what}` : "";
+      }
       for (let node: HTMLElement | null = el, depth = 0; node && depth < 7; depth++, node = node.parentElement) {
         const head = node.querySelector<HTMLElement>("h1, h2, h3, h4");
         if (head && head.textContent?.trim()) {
