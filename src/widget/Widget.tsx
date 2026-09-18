@@ -66,10 +66,14 @@ export function Widget() {
       proc.connect(mute);
       mute.connect(rec.destination);
 
-      const proto = location.protocol === "https:" ? "wss" : "ws";
+      // Static hosts (GitHub Pages) set window.MOLA_BACKEND to the runtime
+      // server URL; when unset the widget is served same-origin by Node.
+      const backend = (window as any).MOLA_BACKEND || location.origin;
+      const backendUrl = new URL(backend);
+      const proto = backendUrl.protocol === "https:" ? "wss" : "ws";
       const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "Europe/London";
       const ws = new WebSocket(
-        `${proto}://${location.host}/ws/live?timezone=${encodeURIComponent(tz)}`
+        `${proto}://${backendUrl.host}/ws/live?timezone=${encodeURIComponent(tz)}`
       );
       wsRef.current = ws;
       const player = new PcmPlayer(24000);
