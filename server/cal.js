@@ -12,7 +12,7 @@ function eventTypeId() {
   return Number(process.env.CAL_EVENT_TYPE_ID || "7123087");
 }
 
-export async function getSlots({ timezone, daysAhead = 7, preferredDate } = {}) {
+export async function getSlots({ timezone, daysAhead = 7, preferredDate, excludeBooked = true } = {}) {
   const tz = timezone || process.env.CAL_TIMEZONE || "Europe/London";
   const start = preferredDate ? new Date(`${preferredDate}T00:00:00Z`) : new Date();
   const end = new Date(start);
@@ -30,10 +30,22 @@ export async function getSlots({ timezone, daysAhead = 7, preferredDate } = {}) 
   if (!res.ok) {
     throw new Error(json?.error?.message || json?.message || `Cal slots ${res.status}`);
   }
+  const taken = excludeBooked ? await bookedStarts().catch(() => new Set()) : new Set();
   const byDay = json.data || {};
   const slots = [];
   for (const [day, list] of Object.entries(byDay)) {
     for (const item of list || []) {
+      const t = new Date(item.start).getTime();
+      if (taken.has(t)) continue;
+      // Also drop slots within 29 min after a booked start (event is 30 min).
+      let clashes = false;
+      for (const b of taken) {
+        if (t > b && t - b < 29 * 60_000) {
+          clashes = true;
+          break;
+        }
+      }
+      if (clashes) continue;
       slots.push({ day, start: item.start, timezone: tz });
     }
   }
@@ -100,6 +112,43 @@ export async function listBookings() {
   }
   const data = json.data;
   return Array.isArray(data) ? data : data?.bookings || [];
+}
+
+export async function cancelBooking(uid) {
+  const res = await fetch(`${CAL_BASE}/bookings/${encodeURIComponent(uid)}`, {
+    method: "DELETE",
+    headers: headers("2026-02-25"),
+  });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok && res.status !== 404) {
+    throw new Error(json?.error?.message || json?.message || `Cal cancel ${res.status}`);
+  }
+  return { ok: true, uid };
+}
+
+export function findBooking(bookings, { email, startIso } = {}) {
+  const wanted = startIso ? new Date(startIso).getTime() : null;
+  return bookings.find((b) => {
+    const attendees = b.attendees || [];
+    const emailMatch = email
+      ? attendees.some((a) => (a.email || "").toLowerCase() === email.toLowerCase())
+      : true;
+    const timeMatch =
+      wanted == null ? true : Math.abs(new Date(b.start).getTime() - wanted) < 60_000;
+    return emailMatch && timeMatch && b.status !== "cancelled";
+  });
+}
+
+// Starts (ms epoch) already taken by confirmed Cal bookings — Maya must never
+// offer these even if the calendar's availability feed is stale.
+export async function bookedStarts() {
+  const bookings = await listBookings();
+  const starts = new Set();
+  for (const b of bookings) {
+    if (b.status === "cancelled") continue;
+    starts.add(new Date(b.start).getTime());
+  }
+  return starts;
 }
 
 export function formatSlotsForMaya(result) {

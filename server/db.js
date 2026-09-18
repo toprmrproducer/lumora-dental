@@ -4,6 +4,28 @@ import { randomUUID } from "node:crypto";
 
 const dataDir = path.join(process.cwd(), "data");
 const dbPath = path.join(dataDir, "calls.json");
+const settingsPath = path.join(dataDir, "settings.json");
+
+function loadSettings() {
+  if (!fs.existsSync(settingsPath)) return {};
+  try {
+    return JSON.parse(fs.readFileSync(settingsPath, "utf8"));
+  } catch {
+    return {};
+  }
+}
+
+export function getSetting(key) {
+  return loadSettings()[key] ?? null;
+}
+
+export function setSetting(key, value) {
+  const settings = loadSettings();
+  settings[key] = value;
+  fs.mkdirSync(dataDir, { recursive: true });
+  fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2));
+  return settings;
+}
 
 function load() {
   if (!fs.existsSync(dbPath)) return { calls: [] };
@@ -36,6 +58,7 @@ export function createCall({ model }) {
     summary: null,
     model,
     transcript: [],
+    recording: false,
   };
   state.calls.unshift(call);
   save(state);

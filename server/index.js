@@ -10,6 +10,7 @@ import * as db from "./db.js";
 import * as cal from "./cal.js";
 import * as auth from "./auth.js";
 import { attachLiveSession } from "./gemini-live.js";
+import { MAYA_SYSTEM_PROMPT as defaultPromptText } from "./prompt.js";
 
 // The clinic's local runtime must prefer this project's ignored .env file over
 // inherited shell variables, otherwise an old admin session can reject its own credentials.
@@ -70,6 +71,49 @@ app.get("/api/calls/:id", auth.requireAdmin, (req, res) => {
   const call = db.getCall(req.params.id);
   if (!call) return res.status(404).json({ error: "Not found" });
   res.json(call);
+});
+
+app.get("/api/calls/:id/recording", auth.requireAdmin, (req, res) => {
+  const call = db.getCall(req.params.id);
+  if (!call) return res.status(404).json({ error: "Not found" });
+  const file = path.join(root, "data", "recordings", `${call.id}.wav`);
+  if (!fs.existsSync(file)) return res.status(404).json({ error: "No recording" });
+  res.setHeader("Content-Type", "audio/wav");
+  res.setHeader("Accept-Ranges", "bytes");
+  res.sendFile(file);
+});
+
+app.get("/api/prompt", auth.requireAdmin, (_req, res) => {
+  res.json({
+    prompt: db.getSetting("systemPrompt") || defaultPromptText,
+    overridden: Boolean(db.getSetting("systemPrompt")),
+  });
+});
+
+app.put("/api/prompt", auth.requireAdmin, (req, res) => {
+  const text = String(req.body?.prompt || "").trim();
+  if (text.length < 40) return res.status(400).json({ error: "Prompt too short to be usable" });
+  if (text.length > 20000) return res.status(400).json({ error: "Prompt too long (20k char cap)" });
+  db.setSetting("systemPrompt", text);
+  res.json({ ok: true, chars: text.length });
+});
+
+app.delete("/api/prompt", auth.requireAdmin, (_req, res) => {
+  db.setSetting("systemPrompt", null);
+  res.json({ ok: true });
+});
+
+app.post("/api/bookings/:uid/cancel", auth.requireAdmin, async (req, res) => {
+  try {
+    await cal.cancelBooking(req.params.uid);
+    const call = db.listCalls().find((c) => c.calBookingUid === req.params.uid);
+    if (call) {
+      db.patchCall(call.id, { outcome: "cancelled", calBookingUid: null, slotStart: null });
+    }
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(502).json({ error: err.message });
+  }
 });
 
 app.get("/api/bookings", auth.requireAdmin, async (_req, res) => {

@@ -1,3 +1,5 @@
+import fs from "node:fs";
+import path from "node:path";
 import { WebSocket } from "ws";
 import { MAYA_SYSTEM_PROMPT, LIVE_TOOLS } from "./prompt.js";
 import * as db from "./db.js";
@@ -5,6 +7,12 @@ import * as cal from "./cal.js";
 
 const GEMINI_WS =
   "wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent";
+
+function activeSystemPrompt() {
+  // The admin dashboard can override the built-in prompt at runtime; falling
+  // back keeps calls working if the override is deleted or corrupted.
+  return db.getSetting("systemPrompt") || MAYA_SYSTEM_PROMPT;
+}
 
 function setupPayload(model) {
   return {
@@ -20,7 +28,7 @@ function setupPayload(model) {
           },
         },
       },
-      systemInstruction: { parts: [{ text: MAYA_SYSTEM_PROMPT }] },
+      systemInstruction: { parts: [{ text: activeSystemPrompt() }] },
       tools: LIVE_TOOLS,
       realtimeInputConfig: {
         automaticActivityDetection: { disabled: true },
@@ -94,6 +102,76 @@ async function runTool(name, args, callId) {
     });
     return cal.formatSlotsForMaya(result);
   }
+  if (name === "cancel_appointment") {
+    const bookings = await cal.listBookings();
+    const booking = cal.findBooking(bookings, {
+      email: args.email,
+      startIso: args.start_iso,
+    });
+    if (!booking) {
+      return {
+        ok: false,
+        message:
+          "No upcoming appointment found for that email. Ask the caller to double-check the email they booked with.",
+      };
+    }
+    await cal.cancelBooking(booking.uid);
+    const call = db.listCalls().find((c) => c.calBookingUid === booking.uid);
+    if (call) {
+      db.patchCall(call.id, { outcome: "cancelled", calBookingUid: null, slotStart: null });
+    }
+    const when = booking.start ? new Date(booking.start).toUTCString().slice(0, 22) : "that time";
+    return {
+      ok: true,
+      message: `Cancelled the appointment for ${when}. Tell the caller it's done and they're welcome back anytime.`,
+      cancelled: booking.uid,
+    };
+  }
+  if (name === "reschedule_appointment") {
+    const bookings = await cal.listBookings();
+    const booking = cal.findBooking(bookings, { email: args.email });
+    if (!booking) {
+      return {
+        ok: false,
+        message: "No existing appointment found for that email. Offer to book a fresh one instead.",
+      };
+    }
+    const newStart = new Date(args.new_start_iso);
+    if (Number.isNaN(newStart.getTime())) throw new Error("Invalid new time");
+    const taken = await cal.bookedStarts();
+    for (const b of taken) {
+      if (Math.abs(b - newStart.getTime()) < 60_000 && booking.uid) {
+        // their own old slot is fine; anything else at the exact time is a clash
+        const own = Math.abs(new Date(booking.start).getTime() - newStart.getTime()) < 60_000;
+        if (!own) {
+          return { ok: false, message: "That time was just taken. Please offer another slot." };
+        }
+      }
+    }
+    const attendees = booking.attendees || [];
+    const created = await cal.createBooking({
+      name: attendees[0]?.name || "Patient",
+      email: args.email,
+      startIso: args.new_start_iso,
+      timezone: args.timezone,
+      notes: "rescheduled by Maya (voice)",
+    });
+    await cal.cancelBooking(booking.uid);
+    const call = db.listCalls().find((c) => c.calBookingUid === booking.uid);
+    if (call) {
+      db.patchCall(call.id, {
+        slotStart: created.start,
+        calBookingUid: created.uid,
+        calMeetingUrl: created.meetingUrl,
+      });
+    }
+    return {
+      ok: true,
+      message:
+        "Moved. Confirm the new time out loud and say a fresh confirmation email is on its way.",
+      booking: created,
+    };
+  }
   if (name === "book_appointment") {
     const booking = await cal.createBooking({
       name: args.name,
@@ -133,9 +211,73 @@ async function runTool(name, args, callId) {
   return { ok: false, error: `Unknown tool ${name}` };
 }
 
+const TARGET_RATE = 16000;
+
+// Captures both sides of the call as raw PCM and writes a synced stereo WAV:
+// caller on the left channel, Maya on the right. Playable from the admin desk.
+function createRecorder() {
+  const caller = [];
+  const maya = [];
+  let callerSamples = 0; // at 16k
+  let mayaSamples = 0; // at 24k
+  return {
+    caller(base64) {
+      const buf = Buffer.from(base64, "base64");
+      caller.push(buf);
+      callerSamples += buf.length / 2;
+    },
+    maya(base64, mimeType) {
+      const rate = /rate=(\d+)/.exec(mimeType || "")?.[1] || 24000;
+      const buf = Buffer.from(base64, "base64");
+      maya.push({ buf, rate: Number(rate) });
+      mayaSamples += buf.length / 2 / (Number(rate) / TARGET_RATE);
+    },
+    hasAudio: () => callerSamples > 0 || mayaSamples > 0,
+    writeWav(filePath) {
+      const total = Math.max(callerSamples, Math.round(mayaSamples)) | 0;
+      const left = Buffer.alloc(total * 2);
+      let off = 0;
+      for (const b of caller) {
+        b.copy(left, off);
+        off += b.length;
+      }
+      const right = Buffer.alloc(total * 2);
+      let pos = 0; // float write position in samples
+      for (const { buf, rate } of maya) {
+        const step = rate / TARGET_RATE;
+        const samples = buf.length / 2;
+        for (let i = 0; i < samples; i++) {
+          const idx = Math.round(pos) * 2;
+          if (idx + 1 >= right.length) break;
+          buf.copy(right, idx, i * 2, i * 2 + 2);
+          pos += step;
+        }
+      }
+      const dataLength = total * 4;
+      const header = Buffer.alloc(44);
+      header.write("RIFF", 0);
+      header.writeUInt32LE(36 + dataLength, 4);
+      header.write("WAVE", 8);
+      header.write("fmt ", 12);
+      header.writeUInt32LE(16, 16);
+      header.writeUInt16LE(1, 20); // PCM
+      header.writeUInt16LE(2, 22); // stereo
+      header.writeUInt32LE(TARGET_RATE, 24);
+      header.writeUInt32LE(TARGET_RATE * 4, 28);
+      header.writeUInt16LE(4, 32);
+      header.writeUInt16LE(16, 34);
+      header.write("data", 36);
+      header.writeUInt32LE(dataLength, 40);
+      fs.mkdirSync(path.dirname(filePath), { recursive: true });
+      fs.writeFileSync(filePath, Buffer.concat([header, left, right]));
+    },
+  };
+}
+
 export async function attachLiveSession(clientWs, { timezone } = {}) {
   const { ws: gemini, model } = await connectWithFallback();
   const call = db.createCall({ model });
+  const recorder = createRecorder();
   clientWs.send(JSON.stringify({ type: "ready", callId: call.id, model }));
 
   const kickoff = {
@@ -163,6 +305,15 @@ export async function attachLiveSession(clientWs, { timezone } = {}) {
       status: "completed",
       endedAt: new Date().toISOString(),
     });
+    if (recorder.hasAudio()) {
+      try {
+        const file = path.join(process.cwd(), "data", "recordings", `${call.id}.wav`);
+        recorder.writeWav(file);
+        db.patchCall(call.id, { recording: true });
+      } catch (err) {
+        console.warn(`[maya] recording save failed: ${err.message}`);
+      }
+    }
     try {
       clientWs.send(JSON.stringify({ type: "ended", reason: reason || "done" }));
     } catch {
@@ -198,6 +349,7 @@ export async function attachLiveSession(clientWs, { timezone } = {}) {
     if (sc?.modelTurn?.parts) {
       for (const part of sc.modelTurn.parts) {
         if (part.inlineData?.data) {
+          recorder.maya(part.inlineData.data, part.inlineData.mimeType);
           clientWs.send(
             JSON.stringify({
               type: "audio",
@@ -287,6 +439,7 @@ export async function attachLiveSession(clientWs, { timezone } = {}) {
       return;
     }
     if (msg.type === "audio" && msg.data) {
+      recorder.caller(msg.data);
       gemini.send(
         JSON.stringify({
           realtimeInput: {
