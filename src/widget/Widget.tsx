@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { VoicePoweredOrb } from "@/components/ui/voice-powered-orb";
 import { PcmPlayer, base64ToInt16, downsampleTo16k, int16ToBase64 } from "./audio";
 
-type Phase = "bubble" | "connecting" | "live" | "error";
+type Phase = "bubble" | "mic" | "connecting" | "live" | "error";
 
 export function Widget() {
   const [phase, setPhase] = useState<Phase>("bubble");
@@ -48,12 +48,28 @@ export function Widget() {
 
   const startCall = async () => {
     setError("");
+    // Ask for the microphone first so the browser permission dialog is the
+    // very next thing the caller sees, with clear copy on the panel.
+    setPhase("mic");
+    setStatus("Tap “Allow” on the microphone prompt to talk to Maya.");
+    let stream: MediaStream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true, channelCount: 1 },
+      });
+    } catch (err) {
+      const denied = err instanceof DOMException && err.name === "NotAllowedError";
+      setError(
+        denied
+          ? "Microphone blocked. Click the mic/lock icon in your address bar, set Microphone to “Allow”, then tap Try again."
+          : "No microphone found. Check that a mic is connected, then tap Try again."
+      );
+      setPhase("error");
+      return;
+    }
     setPhase("connecting");
     setStatus("One sec — putting you through to Maya…");
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: { echoCancellation: true, noiseSuppression: true, channelCount: 1 },
-      });
       streamRef.current = stream;
       const rec = new AudioContext({ sampleRate: 48000 });
       recRef.current = rec;
@@ -154,11 +170,13 @@ export function Widget() {
         }
       };
       ws.onerror = () => {
-        setError("Could not reach Maya. Is the Westside Dentist server running?");
+        setError(
+          "Could not reach Maya. Check your internet connection, then tap Try again."
+        );
         setPhase("error");
       };
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Microphone blocked");
+      setError(err instanceof Error ? err.message : "Could not start the call");
       setPhase("error");
     }
   };
@@ -189,7 +207,11 @@ export function Widget() {
     <div className="mola-panel">
       <div className="mola-live">
         <span className="mola-dot" />
-        {phase === "live" ? "Live with Maya" : "Connecting"}
+        {phase === "live"
+          ? "Live with Maya"
+          : phase === "mic"
+            ? "Allow microphone"
+            : "Connecting"}
       </div>
       <div className="mola-orb-wrap">
         <VoicePoweredOrb
@@ -199,7 +221,7 @@ export function Widget() {
           maxHoverIntensity={1}
         />
       </div>
-      <div className="mola-caption">Voice booking · 30 min video consult</div>
+      <div className="mola-caption">Voice booking · Walk-in appointment</div>
       <div className="mola-status">{error || status}</div>
       <div className="mola-actions">
         {phase === "error" ? (

@@ -20,12 +20,16 @@ The left speech bubble is Maya. Click it, allow the mic, and she books against C
 ## Deploy
 
 - **Frontend (static):** GitHub Pages — https://toprmrproducer.github.io/west-high-dentist/ (auto-builds from `main` on the `west-high-dentist` repo).
-- **Backend (full runtime: voice + admin):** Render — one click:
-  [![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/topmrproducer/west-high-dentist)
-  After the service exists, set these env vars in the Render dashboard (values from local `.env`):
-  `GEMINI_API_KEY`, `CAL_API_KEY`, `CAL_EVENT_TYPE_ID=7123087`, `CAL_USERNAME`, `CAL_EVENT_SLUG`, `CAL_TIMEZONE`, `ADMIN_USER`, `ADMIN_PASSWORD`, `SESSION_SECRET`, `CLINIC_NAME`, `CLINIC_PHONE`, `CLINIC_EMAIL`.
-  Then put the Render URL (e.g. `https://mola-dental.onrender.com`) into `assets/js/backend-url.js`, commit, and Pages rebuilds with the orb wired to it.
-- The Render disk at `/app/data` persists call transcripts across restarts.
+- **Backend (full runtime: voice + admin):** Railway (supports WebSockets; Vercel does not). Two-minute deploy:
+  ```bash
+  npm i -g @railway/cli && railway login
+  railway init        # create the project
+  railway up          # deploys via the Dockerfile
+  railway variables --set "GEMINI_API_KEY=... CAL_API_KEY=... CAL_EVENT_TYPE_ID=7123087 CAL_USERNAME=... CAL_EVENT_SLUG=... CAL_TIMEZONE=Europe/London ADMIN_USER=admin ADMIN_PASSWORD=... SESSION_SECRET=... CLINIC_NAME=Westside Dentist CLINIC_PHONE=... CLINIC_EMAIL=..."
+  railway domain      # prints the public URL, e.g. https://xxx.up.railway.app
+  ```
+  (Dashboard route works too: New Project → Deploy from GitHub repo → it auto-detects the Dockerfile; add the same variables; Settings → Networking → Generate Domain. The volume at `/app/data` keeps call transcripts across restarts.)
+  Then put that URL into `assets/js/backend-url.js` (`window.MOLA_BACKEND = "https://…up.railway.app"`), commit, and Pages rebuilds with the orb wired to it.
 
 ## What is wired
 

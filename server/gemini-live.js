@@ -115,7 +115,7 @@ async function runTool(name, args, callId) {
     });
     return {
       ok: true,
-      message: "Booked. Confirm the time out loud and mention the Google Meet invite email.",
+      message: "Booked. Confirm the walk-in time out loud and say they will get a confirmation email.",
       booking,
     };
   }
