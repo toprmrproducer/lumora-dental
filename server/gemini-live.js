@@ -454,6 +454,27 @@ export async function attachLiveSession(clientWs, { timezone } = {}) {
     if (msg.type === "text" && msg.text) {
       gemini.send(JSON.stringify({ realtimeInput: { text: String(msg.text).slice(0, 500) } }));
     }
+    if (msg.type === "pointer" && msg.text) {
+      // Silent context: what the caller's cursor is hovering over on the page.
+      // Never acknowledged aloud unless the caller asks about it.
+      gemini.send(
+        JSON.stringify({
+          clientContent: {
+            turns: [
+              {
+                role: "user",
+                parts: [
+                  {
+                    text: `[Context — do not speak about this note itself] The caller's cursor is now pointing at this part of the website: "${String(msg.text).slice(0, 400)}". If they ask "what is this?" or similar about what they're looking at, explain that thing naturally, briefly, in your own words as Maya. If it's a treatment, describe it simply and offer to book it. Do not interrupt the conversation to announce this.`,
+                  },
+                ],
+              },
+            ],
+            turnComplete: true,
+          },
+        })
+      );
+    }
     if (msg.type === "activity_start") {
       gemini.send(JSON.stringify({ realtimeInput: { activityStart: {} } }));
     }

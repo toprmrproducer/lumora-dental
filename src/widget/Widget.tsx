@@ -203,6 +203,47 @@ export function Widget() {
     setStatus("Maya is listening…");
   };
 
+  // Pointer awareness: while live, report what the caller is hovering over so
+  // "hey, what is this?" works. Works generically off page headings; explicit
+  // data-maya="Title. Description" attributes win when present.
+  useEffect(() => {
+    if (phase !== "live") return;
+    let last = "";
+    let timer: number | null = null;
+    const describeAt = (x: number, y: number): string => {
+      const el = document.elementFromPoint(x, y) as HTMLElement | null;
+      if (!el || el.closest(".mola-panel, .mola-bubble")) return "";
+      const tagged = el.closest<HTMLElement>("[data-maya]");
+      if (tagged) return tagged.dataset.maya || "";
+      for (let node: HTMLElement | null = el, depth = 0; node && depth < 7; depth++, node = node.parentElement) {
+        const head = node.querySelector<HTMLElement>("h1, h2, h3, h4");
+        if (head && head.textContent?.trim()) {
+          const para = node.querySelector<HTMLElement>("p");
+          const snippet = (para?.textContent || "").trim().replace(/\s+/g, " ").slice(0, 220);
+          return `${head.textContent.trim().replace(/\s+/g, " ")}${snippet ? ` — ${snippet}` : ""}`;
+        }
+      }
+      return (el.textContent || "").trim().replace(/\s+/g, " ").slice(0, 120);
+    };
+    const onMove = (e: MouseEvent) => {
+      if (timer) return;
+      timer = window.setTimeout(() => {
+        timer = null;
+        const text = describeAt(e.clientX, e.clientY);
+        if (!text || text === last) return;
+        last = text;
+        wsRef.current?.send(
+          JSON.stringify({ type: "pointer", text: text.slice(0, 400) })
+        );
+      }, 300);
+    };
+    window.addEventListener("mousemove", onMove, { passive: true });
+    return () => {
+      window.removeEventListener("mousemove", onMove);
+      if (timer) window.clearTimeout(timer);
+    };
+  }, [phase]);
+
   if (phase === "bubble") {
     return (
       <button
