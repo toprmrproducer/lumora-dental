@@ -120,7 +120,7 @@ export function Widget() {
         const msg = JSON.parse(ev.data);
         if (msg.type === "ready") {
           setPhase("live");
-          setStatus("Maya just picked up. Go ahead — talk like you would on the phone.");
+          setStatus("Maya just picked up. Go ahead, talk like you would on the phone.");
         }
         if (msg.type === "audio") {
           if (Date.now() < suppressAudioUntilRef.current) return;
@@ -150,7 +150,7 @@ export function Widget() {
         }
       };
       ws.onerror = () => {
-        setError("Could not reach Maya. Is the Mola server running?");
+        setError("Could not reach Maya. Is the Westside Dentist server running?");
         setPhase("error");
       };
     } catch (err) {
@@ -167,12 +167,16 @@ export function Widget() {
 
   if (phase === "bubble") {
     return (
-      <button className="mola-bubble" type="button" onClick={startCall}>
-        <strong>Maya · West High Dentist</strong>
-        <p>
-          Now you don't need to call our clinic. Just click on the bubble and book your
-          appointment.
-        </p>
+      <button
+        className="mola-bubble"
+        type="button"
+        onClick={startCall}
+        aria-label="Click now and do shit. Start a voice booking with Maya."
+      >
+        <span className="mola-orb-core" aria-hidden="true">
+          <span className="mola-orb-shine" />
+        </span>
+        <span className="mola-orb-prompt">Click now and do shit.</span>
       </button>
     );
   }

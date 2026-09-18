@@ -1,43 +1,96 @@
 .mola-voice-root {
   position: fixed;
-  left: 20px;
-  bottom: 22px;
+  right: 22px;
+  bottom: 24px;
   z-index: 2147483000;
   font-family: Sora, "Helvetica Neue", system-ui, sans-serif;
   color: #e8eef1;
 }
 
 .mola-bubble {
-  max-width: 280px;
-  background: #01262b;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border: 0;
+  background: transparent;
   color: #f4fbfc;
-  border: 1px solid rgba(36, 163, 177, 0.45);
-  box-shadow: 0 18px 40px rgba(1, 31, 35, 0.35);
-  border-radius: 18px 18px 18px 6px;
-  padding: 14px 16px 16px;
+  padding: 0;
   cursor: pointer;
-  text-align: left;
+  text-align: right;
   animation: mola-pop 0.45s ease;
 }
 
-.mola-bubble:hover {
-  border-color: #24a3b1;
+.mola-bubble:focus-visible {
+  outline: 3px solid rgba(36, 163, 177, 0.75);
+  outline-offset: 5px;
+  border-radius: 999px;
 }
 
-.mola-bubble strong {
-  display: block;
-  font-size: 11px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: #7fd7e0;
-  margin-bottom: 6px;
+.mola-orb-core {
+  position: relative;
+  flex: 0 0 66px;
+  width: 66px;
+  height: 66px;
+  border: 1px solid rgba(204, 255, 255, 0.66);
+  border-radius: 50%;
+  background: radial-gradient(circle at 32% 27%, #d9ffff 0 5%, #75edf2 14%, #24a3b1 38%, #06363d 68%, #011f23 100%);
+  box-shadow: 0 0 0 7px rgba(36, 163, 177, 0.08), 0 0 28px rgba(36, 163, 177, 0.76), 0 14px 34px rgba(1, 31, 35, 0.4);
+  transition: transform 180ms ease, box-shadow 180ms ease;
+  animation: mola-orb-breathe 2.4s ease-in-out infinite;
 }
 
-.mola-bubble p {
-  margin: 0;
-  font-size: 14px;
-  line-height: 1.45;
-  font-weight: 500;
+.mola-orb-core::before,
+.mola-orb-core::after {
+  position: absolute;
+  inset: -10px;
+  border: 1px solid rgba(103, 239, 246, 0.38);
+  border-radius: inherit;
+  content: "";
+  opacity: 0;
+  animation: mola-orb-ripple 2.4s ease-out infinite;
+}
+
+.mola-orb-core::after {
+  animation-delay: 1.2s;
+}
+
+.mola-orb-shine {
+  position: absolute;
+  top: 12px;
+  left: 16px;
+  width: 15px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.88);
+  filter: blur(1px);
+  transform: rotate(-28deg);
+}
+
+.mola-orb-prompt {
+  max-width: 138px;
+  padding: 9px 11px;
+  border: 1px solid rgba(36, 163, 177, 0.25);
+  border-radius: 12px;
+  background: rgba(1, 31, 35, 0.92);
+  box-shadow: 0 10px 28px rgba(1, 31, 35, 0.2);
+  color: #e9fcfd;
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1.2;
+  opacity: 0.88;
+  transform-origin: right center;
+  transition: opacity 180ms ease, transform 180ms ease, border-color 180ms ease;
+}
+
+.mola-bubble:hover .mola-orb-core {
+  box-shadow: 0 0 0 9px rgba(36, 163, 177, 0.12), 0 0 38px rgba(79, 235, 244, 0.95), 0 16px 38px rgba(1, 31, 35, 0.48);
+  transform: scale(1.08);
+}
+
+.mola-bubble:hover .mola-orb-prompt {
+  border-color: rgba(128, 246, 250, 0.68);
+  opacity: 1;
+  transform: translateX(-3px);
 }
 
 .mola-panel {
@@ -134,15 +187,34 @@
   }
 }
 
+@keyframes mola-orb-breathe {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.045); }
+}
+
+@keyframes mola-orb-ripple {
+  0% { opacity: 0.55; transform: scale(0.84); }
+  100% { opacity: 0; transform: scale(1.24); }
+}
+
 @media (max-width: 640px) {
   .mola-voice-root {
-    left: 12px;
-    right: 12px;
-    bottom: 12px;
+    right: 14px;
+    bottom: 14px;
   }
-  .mola-bubble,
+
   .mola-panel {
-    max-width: none;
-    width: 100%;
+    width: min(340px, calc(100vw - 28px));
+  }
+
+  .mola-orb-core {
+    flex-basis: 60px;
+    width: 60px;
+    height: 60px;
+  }
+
+  .mola-orb-prompt {
+    max-width: 122px;
+    font-size: 11px;
   }
 }

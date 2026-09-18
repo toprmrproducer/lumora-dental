@@ -1,12 +1,12 @@
-# West High Dentist — design contract
+# Westside Dentist design contract
 
 Public marketing site is the cloned Lumora template, rebranded. Do not restyle it.
 
-## Widget (left bubble + voice orb)
+## Widget (bottom-right booking orb)
 
 - Sits above the cloned site. Does not restyle clinic pages.
-- Resting state: one speech bubble, bottom-left, nothing else.
-- Copy: “Now you don't need to call our clinic. Just click on the bubble and book your appointment.”
+- Resting state: one compact glowing orb, bottom-right, paired with a small prompt only.
+- Copy: “Click now and do shit.”
 - Open state: dark glass panel, teal glow, VoicePoweredOrb, End call.
 - Teal: `#24a3b1`. Deep: `#011f23`. Orb hue shifts when Maya or the caller speaks.
 

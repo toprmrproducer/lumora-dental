@@ -24,7 +24,7 @@ app.use(cookieParser());
 app.get("/api/health", (_req, res) => {
   res.json({
     ok: true,
-    clinic: process.env.CLINIC_NAME || "West High Dentist",
+    clinic: process.env.CLINIC_NAME || "Westside Dentist",
     eventTypeId: Number(process.env.CAL_EVENT_TYPE_ID),
   });
 });
@@ -122,7 +122,7 @@ wss.on("connection", (socket, req) => {
 });
 
 server.listen(PORT, () => {
-  console.log(`West High Dentist running on http://127.0.0.1:${PORT}`);
+  console.log(`Westside Dentist running on http://127.0.0.1:${PORT}`);
   console.log(`Admin        http://127.0.0.1:${PORT}/admin`);
-  console.log(`Voice Maya   left-side bubble on the public site`);
+  console.log(`Voice Maya   bottom-right booking orb on the public site`);
 });

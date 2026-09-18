@@ -1,4 +1,4 @@
-# Mola Dental — project notes
+# Westside Dentist — project notes
 
 A premium dental clinic website. **Origin:** a de-branded, rebuilt version of a Webflow HTML
 template (originally "Smilifye" by author "Flowfye"). Every Webflow/template trace has been
@@ -17,7 +17,7 @@ an original build.
 - `.bak/` — original Webflow exports, kept for reference.
 
 ## Brand
-- Name: **Mola Dental**. Accent teal `#24a3b1`; deep teal `#011f23` / `#022f34`. Font: Sora.
+- Name: **Westside Dentist**. Accent teal `#24a3b1`; deep teal `#011f23` / `#022f34`. Font: Sora.
 - Email: `hello@moladental.com` (placeholder). Phone in footer is template placeholder.
 
 ## Wiring

@@ -1,6 +1,6 @@
-# West High Dentist
+# Westside Dentist
 
-Cloned Lumora static clinic site, rebranded to West High Dentist, plus Maya (Gemini Live voice receptionist) and a front-desk admin.
+Cloned Lumora static clinic site, rebranded to Westside Dentist, plus Maya (Gemini Live voice receptionist) and a front-desk admin.
 
 ## Run
 

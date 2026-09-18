@@ -1,4 +1,4 @@
-# West High Dentist — project notes
+# Westside Dentist — project notes
 
 ## Runtime and voice-interruption state (18 Sep 2026)
 
@@ -38,7 +38,7 @@ deletes images during a re-skin, nothing ever shows a broken/gray/red box — it
 - `.bak/` — original Webflow exports, kept for reference.
 
 ## Brand
-- Name: **West High Dentist**. Accent teal `#24a3b1`; deep teal `#011f23` / `#022f34`. Font: Sora.
+- Name: **Westside Dentist**. Accent teal `#24a3b1`; deep teal `#011f23` / `#022f34`. Font: Sora.
 - Email: `hello@moladental.com` (placeholder). Phone in footer is template placeholder.
 
 ## Wiring
@@ -67,7 +67,7 @@ deletes images during a re-skin, nothing ever shows a broken/gray/red box — it
 - `server/index.js` is the Express and WebSocket runtime. It exposes the safe public slot and booking routes, server-side Gemini Live bridge, and cookie-protected admin API.
 - `server/cal.js` is the only Cal.com access point. The Cal secret stays in `.env` and never enters static browser files.
 - `server/gemini-live.js` streams browser PCM to Gemini Live, returns native audio, reads transcriptions, executes real calendar tool calls, and writes the result to `data/calls.json`.
-- `src/widget/main.tsx` builds `assets/js/mola-widget.js`, a left-side booking bubble plus speech-reactive Maya session. `src/admin/` builds the private React console at `/admin`.
+- `src/widget/main.tsx` builds `assets/js/mola-widget.js`, a compact bottom-right glowing booking orb plus speech-reactive Maya session. Its resting copy is exactly `Click now and do shit.`. `src/admin/` builds the private React console at `/admin`.
 - `npm run build` builds both browser surfaces. `npm start` launches the complete app on `PORT` (default 8787). Docker deployment mounts `/app/data`, which is mandatory to retain transcripts and outcomes across restarts.
 - Runtime secrets belong only in the host environment: `GEMINI_API_KEY`, `CAL_API_KEY`, `ADMIN_USER`, `ADMIN_PASSWORD`, `SESSION_SECRET`, and the Cal event settings in `.env.example`. Never use GitHub Pages for the runtime app because it cannot protect these secrets.
 cd "~/Library/Mobile Documents/com~apple~CloudDocs/website/lumora-dental"
@@ -101,7 +101,7 @@ is a CSS variant and is fine to keep.)
 - `variant-blue/` = full copy recolored teal->bright blue (`--primary-*` overrides + hex sweep),
   4-point sparkle eyebrow icon. Same layout/animations.
 - Legal pages: `privacy/terms/cookies/licenses/404.html` (hand-built, on-brand, all footer-linked).
-- Footer credit: "Crafted by RapidXAI" + "© 2026 West High Dentist".
+- Footer credit: "Crafted by RapidXAI" + "© 2026 Westside Dentist".
 - GitHub: private repo `toprmrproducer/lumora-dental`.
 - Netlify: site `lumora-dental-blue.netlify.app` created but deploy BLOCKED (account credits exhausted).
 - `ONESHOT_PROMPT.md` = comprehensive prompt to regenerate this site from scratch with [PLACEHOLDERS].
