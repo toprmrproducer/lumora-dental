@@ -17,6 +17,16 @@ npm start
 
 The left speech bubble is Maya. Click it, allow the mic, and she books against Cal.com event **Dental Clinic Test Call** (`7123087`).
 
+## Deploy
+
+- **Frontend (static):** GitHub Pages — https://toprmrproducer.github.io/west-high-dentist/ (auto-builds from `main` on the `west-high-dentist` repo).
+- **Backend (full runtime: voice + admin):** Render — one click:
+  [![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/topmrproducer/west-high-dentist)
+  After the service exists, set these env vars in the Render dashboard (values from local `.env`):
+  `GEMINI_API_KEY`, `CAL_API_KEY`, `CAL_EVENT_TYPE_ID=7123087`, `CAL_USERNAME`, `CAL_EVENT_SLUG`, `CAL_TIMEZONE`, `ADMIN_USER`, `ADMIN_PASSWORD`, `SESSION_SECRET`, `CLINIC_NAME`, `CLINIC_PHONE`, `CLINIC_EMAIL`.
+  Then put the Render URL (e.g. `https://mola-dental.onrender.com`) into `assets/js/backend-url.js`, commit, and Pages rebuilds with the orb wired to it.
+- The Render disk at `/app/data` persists call transcripts across restarts.
+
 ## What is wired
 
 - Gemini Live native audio (`GEMINI_LIVE_MODEL`, falls back to `gemini-3.8-live` if 3.1 handshake fails)
