@@ -164,9 +164,6 @@ export function Widget() {
           player.enqueue(base64ToInt16(msg.data), rate ? Number(rate) : 24000);
           levelRef.current = Math.max(levelRef.current, 0.55);
         }
-        if (msg.type === "transcript" && msg.role === "maya") {
-          setStatus(msg.text);
-        }
         if (msg.type === "interrupted") {
           player.interrupt();
           suppressAudioUntilRef.current = Date.now() + 250;
