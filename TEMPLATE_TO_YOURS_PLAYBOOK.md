@@ -5,7 +5,7 @@
 > (Claude Code, Cursor, Windsurf), point it at any exported/purchased HTML template (Webflow, Framer,
 > Wix export, a ThemeForest HTML kit, anything) and any business type (roofer, plumber, dentist, med
 > spa, law firm, gym, SaaS), fill the INPUTS block, and it reproduces exactly what was done for the
-> "Lumora Dental" build: a self-contained, de-branded, rebranded site with original AI imagery, a
+> "Mola Dental" build: a self-contained, de-branded, rebranded site with original AI imagery, a
 > working lead-capture form, fixed animations, legal pages, an optional color variant, and a live
 > deploy. It is template-agnostic and industry-agnostic.
 >

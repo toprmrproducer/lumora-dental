@@ -1,0 +1,148 @@
+.mola-voice-root {
+  position: fixed;
+  left: 20px;
+  bottom: 22px;
+  z-index: 2147483000;
+  font-family: Sora, "Helvetica Neue", system-ui, sans-serif;
+  color: #e8eef1;
+}
+
+.mola-bubble {
+  max-width: 280px;
+  background: #01262b;
+  color: #f4fbfc;
+  border: 1px solid rgba(36, 163, 177, 0.45);
+  box-shadow: 0 18px 40px rgba(1, 31, 35, 0.35);
+  border-radius: 18px 18px 18px 6px;
+  padding: 14px 16px 16px;
+  cursor: pointer;
+  text-align: left;
+  animation: mola-pop 0.45s ease;
+}
+
+.mola-bubble:hover {
+  border-color: #24a3b1;
+}
+
+.mola-bubble strong {
+  display: block;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #7fd7e0;
+  margin-bottom: 6px;
+}
+
+.mola-bubble p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.45;
+  font-weight: 500;
+}
+
+.mola-panel {
+  width: min(340px, calc(100vw - 32px));
+  background: rgba(8, 14, 16, 0.92);
+  border: 1px solid rgba(36, 163, 177, 0.35);
+  border-radius: 24px;
+  padding: 16px 16px 14px;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(16px);
+}
+
+.mola-orb-wrap {
+  width: 220px;
+  height: 220px;
+  margin: 0 auto 8px;
+}
+
+.mola-status {
+  text-align: center;
+  font-size: 13px;
+  color: #9db4bc;
+  min-height: 38px;
+  margin: 4px 0 10px;
+}
+
+.mola-caption {
+  text-align: center;
+  font-size: 12px;
+  color: #7fd7e0;
+  margin-bottom: 10px;
+}
+
+.mola-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.mola-btn {
+  flex: 1;
+  border: 0;
+  border-radius: 999px;
+  padding: 10px 12px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.mola-btn.primary {
+  background: #24a3b1;
+  color: #041416;
+}
+
+.mola-btn.ghost {
+  background: transparent;
+  color: #d7e6ea;
+  border: 1px solid #2a3d42;
+}
+
+.mola-btn.danger {
+  background: #7a2430;
+  color: #fff;
+}
+
+.mola-live {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #7fd7e0;
+  margin-bottom: 6px;
+}
+
+.mola-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #3dd68c;
+  box-shadow: 0 0 10px #3dd68c;
+}
+
+@keyframes mola-pop {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .mola-voice-root {
+    left: 12px;
+    right: 12px;
+    bottom: 12px;
+  }
+  .mola-bubble,
+  .mola-panel {
+    max-width: none;
+    width: 100%;
+  }
+}

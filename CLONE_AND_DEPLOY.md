@@ -1,4 +1,4 @@
-# Lumora Dental — Clone & Deploy (the reliable one-shot)
+# Mola Dental — Clone & Deploy (the reliable one-shot)
 
 > **READ THIS FIRST. This is not a "build" task. The finished website already exists in a public Git
 > repo. Your job is to CLONE it and DEPLOY it, byte-for-byte. Do NOT recreate it, do NOT redesign it,
@@ -114,14 +114,14 @@ Everything below is plain find-and-replace on the cloned files. The structure, a
 stay exactly as-is. Do these edits in a code editor across all `.html` files (and `assets/css/lumora.css`
 for color). **Never** swap the stack or "modernize" — just change text, links, colors, and images.
 
-1. **Brand name:** find `Lumora Dental` (and standalone `Lumora`) across all `.html` → your business name.
+1. **Brand name:** find `Mola Dental` (and standalone `Lumora`) across all `.html` → your business name.
 2. **Logo:** replace `assets/img/lumora-logo.svg` and `assets/img/lumora-logo-dark.svg` (footer) with
    your own SVG/PNG of the same dimensions. Replace `assets/img/favicon.svg` + `webclip.png` too.
-3. **Booking CTA:** find `https://calendly.com/shreyasrajsony11` (×6) → your Calendly/booking URL.
-4. **Phone / WhatsApp:** find `9307512816` (and `9193007512816` if present) → your number (the lead
+3. **Booking CTA:** find `https://cal.com/shreyasrajsony11-ukmj10/dental-clinic-test-call` (×6) → your Calendly/booking URL.
+4. **Phone / WhatsApp:** find `01143177002` (and `9193007512816` if present) → your number (the lead
    form opens a prefilled WhatsApp on submit — handled by the inline `lumoraLead` script before
    `</body>` on each index page).
-5. **Email:** find `hello@lumoradental.com` → your email.
+5. **Email:** find `hello@moladental.com` → your email.
 6. **Copy:** edit headings/paragraphs in the `.html` files directly. They're readable, plain HTML.
 7. **Color:** the theme is driven by CSS custom properties. In `assets/css/lumora.css`, change the
    `--primary-*` values (and the appended hex overrides) — the whole site recolors. The `variant-blue/`

@@ -1,0 +1,40 @@
+{
+  "name": "west-high-dentist",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "concurrently -k \"npm:dev:server\" \"npm:dev:admin\"",
+    "dev:server": "node --watch server/index.js",
+    "dev:admin": "vite --config vite.admin.config.ts",
+    "build": "npm run build:admin && npm run build:widget",
+    "build:admin": "vite build --config vite.admin.config.ts",
+    "build:widget": "vite build --config vite.widget.config.ts",
+    "start": "node server/index.js"
+  },
+  "dependencies": {
+    "@radix-ui/react-slot": "^1.2.3",
+    "bcryptjs": "^3.0.2",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "cookie-parser": "^1.4.7",
+    "dotenv": "^16.6.1",
+    "express": "^5.1.0",
+    "lucide-react": "^0.544.0",
+    "ogl": "^1.0.11",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1",
+    "tailwind-merge": "^3.3.1",
+    "ws": "^8.18.3"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.1.13",
+    "@types/react": "^19.1.13",
+    "@types/react-dom": "^19.1.9",
+    "@vitejs/plugin-react": "^5.0.2",
+    "concurrently": "^9.2.1",
+    "tailwindcss": "^4.1.13",
+    "typescript": "^5.9.2",
+    "vite": "^7.1.5"
+  }
+}

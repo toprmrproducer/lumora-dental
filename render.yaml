@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: mola-dental
+    runtime: docker
+    healthCheckPath: /api/health
+    disk:
+      name: mola-call-records
+      mountPath: /app/data
+      sizeGB: 1

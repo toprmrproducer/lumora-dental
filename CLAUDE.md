@@ -1,4 +1,4 @@
-# Lumora Dental — project notes
+# West High Dentist — project notes
 
 A premium dental clinic website. **Origin:** a de-branded, rebuilt version of a Webflow HTML
 template (originally "Smilifye" by author "Flowfye"). Every Webflow/template trace has been
@@ -31,12 +31,12 @@ deletes images during a re-skin, nothing ever shows a broken/gray/red box — it
 - `.bak/` — original Webflow exports, kept for reference.
 
 ## Brand
-- Name: **Lumora Dental**. Accent teal `#24a3b1`; deep teal `#011f23` / `#022f34`. Font: Sora.
-- Email: `hello@lumoradental.com` (placeholder). Phone in footer is template placeholder.
+- Name: **West High Dentist**. Accent teal `#24a3b1`; deep teal `#011f23` / `#022f34`. Font: Sora.
+- Email: `hello@moladental.com` (placeholder). Phone in footer is template placeholder.
 
 ## Wiring
 - Nav/footer links are local `.html` files. All "Book/Get Appointment" CTAs (×6) →
-  `https://calendly.com/shreyasrajsony11` (Shreyas's connected Calendly).
+  `https://cal.com/shreyasrajsony11-ukmj10/dental-clinic-test-call` (Shreyas's connected Calendly).
 
 ## Interactions
 - Webflow IX2 (jQuery-dependent) + GSAP/ScrollTrigger/SplitText + inline GSAP (animated counters
@@ -54,6 +54,15 @@ deletes images during a re-skin, nothing ever shows a broken/gray/red box — it
 
 ## Run locally
 ```
+
+## Voice booking application (17 Sep 2026)
+
+- `server/index.js` is the Express and WebSocket runtime. It exposes the safe public slot and booking routes, server-side Gemini Live bridge, and cookie-protected admin API.
+- `server/cal.js` is the only Cal.com access point. The Cal secret stays in `.env` and never enters static browser files.
+- `server/gemini-live.js` streams browser PCM to Gemini Live, returns native audio, reads transcriptions, executes real calendar tool calls, and writes the result to `data/calls.json`.
+- `src/widget/main.tsx` builds `assets/js/mola-widget.js`, a left-side booking bubble plus speech-reactive Maya session. `src/admin/` builds the private React console at `/admin`.
+- `npm run build` builds both browser surfaces. `npm start` launches the complete app on `PORT` (default 8787). Docker deployment mounts `/app/data`, which is mandatory to retain transcripts and outcomes across restarts.
+- Runtime secrets belong only in the host environment: `GEMINI_API_KEY`, `CAL_API_KEY`, `ADMIN_USER`, `ADMIN_PASSWORD`, `SESSION_SECRET`, and the Cal event settings in `.env.example`. Never use GitHub Pages for the runtime app because it cannot protect these secrets.
 cd "~/Library/Mobile Documents/com~apple~CloudDocs/website/lumora-dental"
 python3 -m http.server 8123 --bind 127.0.0.1
 # open http://127.0.0.1:8123/index.html
@@ -85,7 +94,7 @@ is a CSS variant and is fine to keep.)
 - `variant-blue/` = full copy recolored teal->bright blue (`--primary-*` overrides + hex sweep),
   4-point sparkle eyebrow icon. Same layout/animations.
 - Legal pages: `privacy/terms/cookies/licenses/404.html` (hand-built, on-brand, all footer-linked).
-- Footer credit: "Crafted by RapidXAI" + "© 2026 Lumora Dental".
+- Footer credit: "Crafted by RapidXAI" + "© 2026 West High Dentist".
 - GitHub: private repo `toprmrproducer/lumora-dental`.
 - Netlify: site `lumora-dental-blue.netlify.app` created but deploy BLOCKED (account credits exhausted).
 - `ONESHOT_PROMPT.md` = comprehensive prompt to regenerate this site from scratch with [PLACEHOLDERS].

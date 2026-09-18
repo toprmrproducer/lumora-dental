@@ -1,4 +1,4 @@
-# Lumora Dental — project notes
+# Mola Dental — project notes
 
 A premium dental clinic website. **Origin:** a de-branded, rebuilt version of a Webflow HTML
 template (originally "Smilifye" by author "Flowfye"). Every Webflow/template trace has been
@@ -17,12 +17,12 @@ an original build.
 - `.bak/` — original Webflow exports, kept for reference.
 
 ## Brand
-- Name: **Lumora Dental**. Accent teal `#24a3b1`; deep teal `#011f23` / `#022f34`. Font: Sora.
-- Email: `hello@lumoradental.com` (placeholder). Phone in footer is template placeholder.
+- Name: **Mola Dental**. Accent teal `#24a3b1`; deep teal `#011f23` / `#022f34`. Font: Sora.
+- Email: `hello@moladental.com` (placeholder). Phone in footer is template placeholder.
 
 ## Wiring
 - Nav/footer links are local `.html` files. All "Book/Get Appointment" CTAs (×6) →
-  `https://calendly.com/shreyasrajsony11` (Shreyas's connected Calendly).
+  `https://cal.com/shreyasrajsony11-ukmj10/dental-clinic-test-call` (Shreyas's connected Calendly).
 
 ## Interactions
 - Webflow IX2 (jQuery-dependent) + GSAP/ScrollTrigger/SplitText + inline GSAP (animated counters
