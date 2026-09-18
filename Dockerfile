@@ -14,6 +14,5 @@ COPY --from=build /app/assets/js ./assets/js
 COPY --from=build /app/dist ./dist
 COPY . .
 RUN mkdir -p /app/data
-VOLUME ["/app/data"]
 EXPOSE 8787
 CMD ["node", "server/index.js"]
