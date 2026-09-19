@@ -38,9 +38,12 @@ function safeEq(a, b) {
 
 export function login(req, res) {
   const { username, password } = req.body || {};
-  const user = process.env.ADMIN_USER || "admin";
-  const pass = process.env.ADMIN_PASSWORD || "mola-admin-2026";
-  if (!safeEq(username || "", user) || !safeEq(password || "", pass)) {
+  // No default credentials: the old hardcoded fallback sat in a public repo
+  // and leaked the real password. Without ADMIN_USER/ADMIN_PASSWORD set the
+  // panel simply stays closed.
+  const user = process.env.ADMIN_USER;
+  const pass = process.env.ADMIN_PASSWORD;
+  if (!user || !pass || !safeEq(username || "", user) || !safeEq(password || "", pass)) {
     return res.status(401).json({ error: "Invalid credentials" });
   }
   const token = sign({ sub: user, exp: Date.now() + MAX_AGE_MS });

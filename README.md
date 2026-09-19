@@ -13,7 +13,7 @@ npm start
 
 - Public site: http://127.0.0.1:8787
 - Admin desk: http://127.0.0.1:8787/admin  
-  `admin` / `mola-admin-2026` (override in `.env`)
+  credentials come from `.env` (`ADMIN_USER` / `ADMIN_PASSWORD`)
 
 The left speech bubble is Maya. Click it, allow the mic, and she books against Cal.com event **Dental Clinic Test Call** (`7123087`).
 

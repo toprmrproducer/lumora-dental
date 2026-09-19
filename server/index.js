@@ -142,6 +142,32 @@ if (fs.existsSync(adminDist)) {
   });
 }
 
+// The site is served from the repo root, so fence off everything that is not
+// meant to be public: server code, source, call data/recordings, env files,
+// git metadata and build configs. Anything under these prefixes 404s.
+const PRIVATE_PREFIXES = [
+  "/data",
+  "/server",
+  "/src",
+  "/dist",
+  "/node_modules",
+  "/.git",
+  "/.env",
+  "/vite.",
+  "/tsconfig",
+  "/Dockerfile",
+  "/.dockerignore",
+  "/.gitignore",
+  "/.nojekyll",
+];
+app.use((req, res, next) => {
+  const p = req.path.toLowerCase();
+  if (PRIVATE_PREFIXES.some((pre) => p === pre || p.startsWith(`${pre}/`))) {
+    return res.status(404).end();
+  }
+  next();
+});
+
 app.use(
   express.static(root, {
     extensions: ["html"],
