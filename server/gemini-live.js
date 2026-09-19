@@ -41,7 +41,8 @@ function setupPayload(model) {
 }
 
 function connectGemini(model) {
-  const key = process.env.GEMINI_API_KEY;
+  // Admin panel override first (data/settings.json), env var as fallback.
+  const key = db.getSetting("geminiApiKey") || process.env.GEMINI_API_KEY;
   const url = `${GEMINI_WS}?key=${encodeURIComponent(key)}`;
   return new Promise((resolve, reject) => {
     const ws = new WebSocket(url);

@@ -47,7 +47,9 @@ type Booking = {
   attendees?: { name?: string; email?: string }[];
 };
 
-type Tab = "calls" | "crm" | "calendar" | "prompt";
+type Tab = "calls" | "crm" | "calendar" | "prompt" | "keys";
+
+type KeyStatus = { set: boolean; source: string; tail: string | null };
 
 const api = (path: string, init?: RequestInit) =>
   fetch(path, { credentials: "include", ...init });
@@ -67,6 +69,15 @@ export default function App() {
   const [promptState, setPromptState] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [cancellingUid, setCancellingUid] = useState<string | null>(null);
   const [cancelError, setCancelError] = useState("");
+  const [keys, setKeys] = useState<{
+    gemini: KeyStatus;
+    cal: KeyStatus;
+  } | null>(null);
+  const [geminiKeyInput, setGeminiKeyInput] = useState("");
+  const [calKeyInput, setCalKeyInput] = useState("");
+  const [keyState, setKeyState] = useState<"idle" | "saving" | "error">("idle");
+  const [keyError, setKeyError] = useState("");
+  const [keySavedMsg, setKeySavedMsg] = useState("");
 
   const active = useMemo(
     () => calls.find((c) => c.id === activeId) || null,
@@ -128,11 +139,49 @@ export default function App() {
     setPromptOverridden(json.overridden);
   }
 
+  async function loadKeys() {
+    const res = await api("/api/keys");
+    if (!res.ok) return;
+    setKeys(await res.json());
+  }
+
+  async function saveKeys() {
+    setKeyState("saving");
+    setKeyError("");
+    setKeySavedMsg("");
+    const body: Record<string, string> = {};
+    if (geminiKeyInput.trim()) body.geminiApiKey = geminiKeyInput.trim();
+    if (calKeyInput.trim()) body.calApiKey = calKeyInput.trim();
+    if (!Object.keys(body).length) {
+      setKeyState("error");
+      setKeyError("Paste at least one key first.");
+      return;
+    }
+    const res = await api("/api/keys", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      setKeyState("error");
+      setKeyError(json.error || "Save failed.");
+      return;
+    }
+    setKeys({ gemini: json.gemini, cal: json.cal });
+    setGeminiKeyInput("");
+    setCalKeyInput("");
+    setKeyState("idle");
+    setKeySavedMsg("Saved and validated — the next call uses it.");
+    window.setTimeout(() => setKeySavedMsg(""), 4000);
+  }
+
   useEffect(() => {
     loadMe().then((ok) => {
       if (ok) {
         loadDesk();
         loadPrompt();
+        loadKeys();
       }
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -161,6 +210,7 @@ export default function App() {
     setUser(data.user);
     loadDesk();
     loadPrompt();
+    loadKeys();
   }
 
   async function onLogout() {
@@ -304,6 +354,7 @@ export default function App() {
             ["crm", "Shreyas CRM"],
             ["calendar", "Cal.com bookings"],
             ["prompt", "Maya's prompt"],
+            ["keys", "API keys"],
           ] as Array<[Tab, string]>
         ).map(([key, label]) => (
           <Button key={key} variant={tab === key ? "default" : "ghost"} onClick={() => setTab(key)}>
@@ -409,6 +460,48 @@ export default function App() {
             </div>
           ))}
           {!patients.length ? <p className="text-sm text-muted">No patients yet.</p> : null}
+        </div>
+      ) : tab === "keys" ? (
+        <div className="px-5 pb-10 max-w-3xl space-y-5">
+          <p className="text-sm text-muted">
+            Paste your keys here — they are validated live, stored server-side on the
+            platform volume, and used for every new call and booking. They are never
+            sent to the browser and never shown in full (only the last 4 characters).
+          </p>
+          {keySavedMsg ? <p className="text-sm text-booked">{keySavedMsg}</p> : null}
+          {keyError ? <p className="text-sm text-missed">{keyError}</p> : null}
+          <div className="rounded-xl border border-line bg-panel p-5">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="font-semibold">Google Gemini (voice agent)</h3>
+              <KeyBadge status={keys?.gemini} />
+            </div>
+            <input
+              type="password"
+              value={geminiKeyInput}
+              onChange={(e) => setGeminiKeyInput(e.target.value)}
+              placeholder="paste new AIza… key to replace"
+              className="w-full h-10 rounded-md bg-canvas border border-line px-3 font-mono text-sm"
+              autoComplete="off"
+            />
+          </div>
+          <div className="rounded-xl border border-line bg-panel p-5">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="font-semibold">Cal.com (calendar booking)</h3>
+              <KeyBadge status={keys?.cal} />
+            </div>
+            <input
+              type="password"
+              value={calKeyInput}
+              onChange={(e) => setCalKeyInput(e.target.value)}
+              placeholder="paste new cal_live_… key to replace"
+              className="w-full h-10 rounded-md bg-canvas border border-line px-3 font-mono text-sm"
+              autoComplete="off"
+            />
+          </div>
+          <Button onClick={saveKeys} disabled={keyState === "saving"}>
+            <Save className="w-4 h-4 mr-1" />
+            {keyState === "saving" ? "Validating…" : "Save keys"}
+          </Button>
         </div>
       ) : tab === "prompt" ? (
         <div className="px-5 pb-10 max-w-4xl">
@@ -538,8 +631,17 @@ export default function App() {
   );
 }
 
-function ChartCard({ title, children }: { title: string; children: React.ReactNode }) {
+function KeyBadge({ status }: { status?: KeyStatus }) {
+  if (!status) return <span className="text-xs text-muted">checking…</span>;
+  if (!status.set) return <span className="text-xs text-missed">not set</span>;
   return (
+    <span className="text-xs text-muted">
+      active · via {status.source} · …{status.tail}
+    </span>
+  );
+}
+
+function ChartCard({ title, children }: { title: string; children: React.ReactNode }) {  return (
     <div className="rounded-xl border border-line bg-panel p-4">
       <p className="text-[11px] uppercase tracking-wider text-muted mb-3">{title}</p>
       <div className="h-[130px]">{children}</div>

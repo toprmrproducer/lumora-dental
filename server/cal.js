@@ -1,8 +1,15 @@
+import { getSetting } from "./db.js";
+
 const CAL_BASE = "https://api.cal.com/v2";
+
+function calKey() {
+  // Admin panel override first, env var as fallback.
+  return getSetting("calApiKey") || process.env.CAL_API_KEY;
+}
 
 function headers(apiVersion = "2024-09-04") {
   return {
-    Authorization: `Bearer ${process.env.CAL_API_KEY}`,
+    Authorization: `Bearer ${calKey()}`,
     "cal-api-version": apiVersion,
     "Content-Type": "application/json",
   };

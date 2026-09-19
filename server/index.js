@@ -116,6 +116,60 @@ app.post("/api/bookings/:uid/cancel", auth.requireAdmin, async (req, res) => {
   }
 });
 
+function keyStatus(settingName, envName) {
+  const fromSettings = db.getSetting(settingName);
+  const active = fromSettings || process.env[envName] || "";
+  return {
+    set: Boolean(active),
+    source: fromSettings ? "admin panel" : active ? "environment" : "not set",
+    tail: active ? active.slice(-4) : null,
+  };
+}
+
+app.get("/api/keys", auth.requireAdmin, (_req, res) => {
+  // Only ever expose whether a key is set + its last 4 chars, never the value.
+  res.json({ gemini: keyStatus("geminiApiKey", "GEMINI_API_KEY"), cal: keyStatus("calApiKey", "CAL_API_KEY") });
+});
+
+async function validateGeminiKey(key) {
+  const res = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(key)}`
+  );
+  if (!res.ok) throw new Error(`Gemini rejected this key (HTTP ${res.status})`);
+}
+
+async function validateCalKey(key) {
+  const res = await fetch("https://api.cal.com/v2/bookings?take=1", {
+    headers: { Authorization: `Bearer ${key}`, "cal-api-version": "2026-02-25" },
+  });
+  if (res.status === 401 || res.status === 403) {
+    throw new Error("Cal.com rejected this key (unauthorized)");
+  }
+}
+
+app.put("/api/keys", auth.requireAdmin, async (req, res) => {
+  const { geminiApiKey, calApiKey } = req.body || {};
+  try {
+    if (typeof geminiApiKey === "string") {
+      const trimmed = geminiApiKey.trim();
+      if (trimmed && trimmed !== "clear") await validateGeminiKey(trimmed);
+      db.setSetting("geminiApiKey", trimmed === "" ? null : trimmed || null);
+    }
+    if (typeof calApiKey === "string") {
+      const trimmed = calApiKey.trim();
+      if (trimmed && trimmed !== "clear") await validateCalKey(trimmed);
+      db.setSetting("calApiKey", trimmed === "" ? null : trimmed || null);
+    }
+    res.json({
+      ok: true,
+      gemini: keyStatus("geminiApiKey", "GEMINI_API_KEY"),
+      cal: keyStatus("calApiKey", "CAL_API_KEY"),
+    });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
 app.get("/api/bookings", auth.requireAdmin, async (_req, res) => {
   try {
     const bookings = await cal.listBookings();
