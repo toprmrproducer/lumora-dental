@@ -11,6 +11,7 @@ import * as cal from "./cal.js";
 import * as auth from "./auth.js";
 import { attachLiveSession } from "./gemini-live.js";
 import { MAYA_SYSTEM_PROMPT as defaultPromptText } from "./prompt.js";
+import { subscribe } from "./livebus.js";
 
 // The clinic's local runtime must prefer this project's ignored .env file over
 // inherited shell variables, otherwise an old admin session can reject its own credentials.
@@ -245,6 +246,44 @@ wss.on("connection", (socket, req) => {
     }
     socket.close();
   });
+});
+
+// Admin live listening: bridges chunks published on the call bus to
+// authenticated admin browsers. cookieParser never runs on WebSocket
+// upgrades, so parse the upgrade Cookie header into the shape readSession
+// expects ({ cookies: { mola_admin: token } }).
+function upgradeCookies(header) {
+  const cookies = {};
+  if (!header) return cookies;
+  for (const part of header.split(";")) {
+    const idx = part.indexOf("=");
+    if (idx === -1) continue;
+    cookies[part.slice(0, idx).trim()] = decodeURIComponent(part.slice(idx + 1).trim());
+  }
+  return cookies;
+}
+
+const monitorWss = new WebSocketServer({ server, path: "/ws/monitor" });
+
+monitorWss.on("connection", (socket, req) => {
+  const session = auth.readSession({ cookies: upgradeCookies(req.headers.cookie) });
+  const url = new URL(req.url, `http://${req.headers.host}`);
+  const callId = url.searchParams.get("callId");
+  if (!session || !callId) {
+    socket.close(4401, "Unauthorized");
+    return;
+  }
+  const unsubscribe = subscribe(callId, (chunk) => {
+    try {
+      if (socket.readyState === socket.OPEN) socket.send(JSON.stringify(chunk));
+    } catch {
+      /* dead socket — ignore */
+    }
+  });
+  socket.on("close", unsubscribe);
+  // A socket that errors never emits close reliably; unsubscribing here keeps
+  // the bus from writing into it. Double-unsubscribe is harmless.
+  socket.on("error", unsubscribe);
 });
 
 server.listen(PORT, () => {

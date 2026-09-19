@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   LogOut,
@@ -619,6 +619,7 @@ export default function App() {
                 {active.summary ? (
                   <p className="text-sm mb-4 text-ink/90">{active.summary}</p>
                 ) : null}
+                {active.status === "live" ? <LiveMonitor key={active.id} callId={active.id} /> : null}
                 {active.slotStart ? (
                   <p className="text-sm mb-4">
                     Walk-in slot {formatWhen(active.slotStart)}
@@ -661,6 +662,96 @@ export default function App() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+type LiveChunk = { channel?: string; base64?: string; rate?: number };
+
+// "Listen live" for calls with status "live": opens /ws/monitor for the call,
+// decodes base64 PCM chunks (16k caller / 24k Maya) and plays them through one
+// AudioContext with a small per-channel scheduler. Keyed by callId so picking
+// another call tears the socket + context down cleanly.
+function LiveMonitor({ callId }: { callId: string }) {
+  const [listening, setListening] = useState(false);
+
+  useEffect(() => {
+    if (!listening) return;
+    const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
+    const ws = new WebSocket(
+      `${proto}//${window.location.host}/ws/monitor?callId=${encodeURIComponent(callId)}`
+    );
+    const ctx = new AudioContext();
+    void ctx.resume().catch(() => {});
+    // Next scheduled start time per channel, relative to ctx.currentTime.
+    const nextTime: Record<string, number> = { maya: 0, caller: 0 };
+
+    const decode = (b64: string) => {
+      const bin = window.atob(b64);
+      const bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      return new Int16Array(bytes.buffer);
+    };
+
+    ws.onmessage = (ev: MessageEvent) => {
+      let chunk: LiveChunk;
+      try {
+        chunk = JSON.parse(String(ev.data));
+      } catch {
+        return;
+      }
+      if (!chunk?.base64 || !chunk.rate) return;
+      const channel = chunk.channel === "maya" ? "maya" : "caller";
+      let samples: Int16Array;
+      try {
+        samples = decode(chunk.base64);
+      } catch {
+        return;
+      }
+      if (!samples.length || ctx.state === "closed") return;
+      const buffer = ctx.createBuffer(1, samples.length, chunk.rate);
+      const data = buffer.getChannelData(0);
+      for (let i = 0; i < samples.length; i++) data[i] = samples[i] / 32768;
+      const src = ctx.createBufferSource();
+      src.buffer = buffer;
+      src.connect(ctx.destination);
+      const now = ctx.currentTime;
+      // Cap queued audio: if this channel drifts >1.5s behind realtime,
+      // drop the backlog and resync instead of lagging forever.
+      if (nextTime[channel] > now + 1.5) nextTime[channel] = now + 0.05;
+      const startAt = Math.max(now + 0.05, nextTime[channel]);
+      nextTime[channel] = startAt + buffer.duration;
+      src.start(startAt);
+    };
+    ws.onclose = () => setListening(false);
+
+    return () => {
+      ws.onmessage = null;
+      ws.onclose = null;
+      try {
+        ws.close();
+      } catch {
+        /* ignore */
+      }
+      void ctx.close().catch(() => {});
+    };
+  }, [listening, callId]);
+
+  return (
+    <div className="flex items-center gap-3 mb-4">
+      <Button
+        variant={listening ? "ghost" : "default"}
+        className={listening ? "" : "bg-accent text-primary-foreground"}
+        onClick={() => setListening((v) => !v)}
+      >
+        <Radio className="w-4 h-4 mr-1" />
+        {listening ? "Stop listening" : "Listen live"}
+      </Button>
+      {listening ? (
+        <span className="text-[11px] uppercase tracking-wider text-accent animate-pulse">
+          ● live audio
+        </span>
+      ) : null}
     </div>
   );
 }

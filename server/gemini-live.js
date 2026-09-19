@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { WebSocket } from "ws";
 import { MAYA_SYSTEM_PROMPT, LIVE_TOOLS } from "./prompt.js";
+import { publish } from "./livebus.js";
 import * as db from "./db.js";
 import * as cal from "./cal.js";
 
@@ -209,33 +210,85 @@ async function runTool(name, args, callId) {
     });
     return { ok: true };
   }
+  if (name === "end_call") {
+    // Maya decided the call is over (caller said goodbye, or the time-limit
+    // nudge). The actual close happens in the message pump after a short delay
+    // so her goodbye audio has time to play out.
+    return {
+      ok: true,
+      ended: true,
+      message: "Say a warm one-line goodbye, then the call will end.",
+    };
+  }
   return { ok: false, error: `Unknown tool ${name}` };
 }
 
 const TARGET_RATE = 16000;
 
+// Resamples raw mono PCM16 audio at `rate` down/up to TARGET_RATE using proper
+// linear interpolation: out[i] = lerp(in[floor(x)], in[ceil(x)], frac) where
+// x = i * (rate / TARGET_RATE). Indices are clamped; output is int16 LE.
+function resamplePcm16(buf, rate) {
+  const srcSamples = Math.floor(buf.length / 2);
+  if (srcSamples === 0) return Buffer.alloc(0);
+  if (rate === TARGET_RATE) return Buffer.from(buf);
+  const step = rate / TARGET_RATE;
+  const outSamples = Math.floor(srcSamples / step);
+  const out = Buffer.alloc(outSamples * 2);
+  const lastIdx = srcSamples - 1;
+  for (let i = 0; i < outSamples; i++) {
+    const x = i * step;
+    const i0 = Math.min(Math.floor(x), lastIdx); // clamp low
+    const i1 = Math.min(i0 + 1, lastIdx); // clamp high
+    const frac = x - i0;
+    const a = buf.readInt16LE(i0 * 2);
+    const b = buf.readInt16LE(i1 * 2);
+    let v = Math.round(a + (b - a) * frac);
+    if (v > 32767) v = 32767;
+    if (v < -32768) v = -32768;
+    out.writeInt16LE(v, i * 2);
+  }
+  return out;
+}
+
+// RMS of int16 LE samples, normalised to full scale (0 = silence, ~1 = peak).
+function rmsOf(buf) {
+  const n = Math.floor(buf.length / 2);
+  if (n === 0) return 0;
+  let sum = 0;
+  for (let i = 0; i < n; i++) {
+    const s = buf.readInt16LE(i * 2) / 32768;
+    sum += s * s;
+  }
+  return Math.sqrt(sum / n);
+}
+
 // Captures both sides of the call as raw PCM and writes a synced stereo WAV:
-// caller on the left channel, Maya on the right. Playable from the admin desk.
+// caller on the left channel (raw 16k passthrough), Maya on the right
+// (resampled from her native rate to 16k with linear interpolation so the
+// pitch stays correct). Playable from the admin desk.
 function createRecorder() {
-  const caller = [];
-  const maya = [];
-  let callerSamples = 0; // at 16k
-  let mayaSamples = 0; // at 24k
+  const caller = []; // raw 16k PCM16 buffers, caller channel
+  const mayaChunks = []; // raw Maya PCM16 buffers + their source rate
+  let callerSamples = 0; // exact count @16k
+  let mayaSamples = 0; // exact resampled count @16k
   return {
     caller(base64) {
       const buf = Buffer.from(base64, "base64");
+      if (!buf.length) return;
       caller.push(buf);
       callerSamples += buf.length / 2;
     },
     maya(base64, mimeType) {
-      const rate = /rate=(\d+)/.exec(mimeType || "")?.[1] || 24000;
+      const rate = Number(/rate=(\d+)/.exec(mimeType || "")?.[1]) || 24000;
       const buf = Buffer.from(base64, "base64");
-      maya.push({ buf, rate: Number(rate) });
-      mayaSamples += buf.length / 2 / (Number(rate) / TARGET_RATE);
+      if (!buf.length) return;
+      mayaChunks.push({ buf, rate });
+      mayaSamples += resamplePcm16(buf, rate).length / 2;
     },
     hasAudio: () => callerSamples > 0 || mayaSamples > 0,
     writeWav(filePath) {
-      const total = Math.max(callerSamples, Math.round(mayaSamples)) | 0;
+      const total = Math.max(callerSamples, mayaSamples);
       const left = Buffer.alloc(total * 2);
       let off = 0;
       for (const b of caller) {
@@ -243,16 +296,11 @@ function createRecorder() {
         off += b.length;
       }
       const right = Buffer.alloc(total * 2);
-      let pos = 0; // float write position in samples
-      for (const { buf, rate } of maya) {
-        const step = rate / TARGET_RATE;
-        const samples = buf.length / 2;
-        for (let i = 0; i < samples; i++) {
-          const idx = Math.round(pos) * 2;
-          if (idx + 1 >= right.length) break;
-          buf.copy(right, idx, i * 2, i * 2 + 2);
-          pos += step;
-        }
+      off = 0;
+      for (const { buf, rate } of mayaChunks) {
+        const out = resamplePcm16(buf, rate);
+        out.copy(right, off);
+        off += out.length;
       }
       const dataLength = total * 4;
       const header = Buffer.alloc(44);
@@ -271,6 +319,10 @@ function createRecorder() {
       header.writeUInt32LE(dataLength, 40);
       fs.mkdirSync(path.dirname(filePath), { recursive: true });
       fs.writeFileSync(filePath, Buffer.concat([header, left, right]));
+      const callId = path.basename(filePath, ".wav");
+      console.log(
+        `[maya] recording ${callId} callerRms=${rmsOf(left).toFixed(4)} mayaRms=${rmsOf(right).toFixed(4)} durationS=${(total / TARGET_RATE).toFixed(1)}`
+      );
     },
   };
 }
@@ -307,9 +359,16 @@ export async function attachLiveSession(clientWs, { timezone } = {}) {
   gemini.send(JSON.stringify(kickoff));
 
   let closed = false;
+  // Hard call-length cap timers (API cost control) + Maya's own hangup timer.
+  let timeLimitTimer = null;
+  let hardStopTimer = null;
+  let mayaHangupTimer = null;
   const closeBoth = (reason) => {
     if (closed) return;
     closed = true;
+    if (timeLimitTimer) clearTimeout(timeLimitTimer);
+    if (hardStopTimer) clearTimeout(hardStopTimer);
+    if (mayaHangupTimer) clearTimeout(mayaHangupTimer);
     console.log(`[maya] call ${call.id} gate stats`, gateStats);
     db.patchCall(call.id, {
       status: "completed",
@@ -360,6 +419,7 @@ export async function attachLiveSession(clientWs, { timezone } = {}) {
       for (const part of sc.modelTurn.parts) {
         if (part.inlineData?.data) {
           recorder.maya(part.inlineData.data, part.inlineData.mimeType);
+          publish(call.id, "maya", part.inlineData.data, 24000);
           clientWs.send(
             JSON.stringify({
               type: "audio",
@@ -413,6 +473,7 @@ export async function attachLiveSession(clientWs, { timezone } = {}) {
     }
     if (msg.toolCall?.functionCalls) {
       const functionResponses = [];
+      let endCallRequested = false;
       for (const fc of msg.toolCall.functionCalls) {
         let result;
         try {
@@ -421,6 +482,7 @@ export async function attachLiveSession(clientWs, { timezone } = {}) {
           result = { ok: false, error: err.message };
         }
         clientWs.send(JSON.stringify({ type: "tool", name: fc.name, result }));
+        if (fc.name === "end_call") endCallRequested = true;
         functionResponses.push({
           id: fc.id,
           name: fc.name,
@@ -428,6 +490,10 @@ export async function attachLiveSession(clientWs, { timezone } = {}) {
         });
       }
       gemini.send(JSON.stringify({ toolResponse: { functionResponses } }));
+      if (endCallRequested) {
+        // Give Maya's goodbye line time to play before actually closing.
+        mayaHangupTimer = setTimeout(() => closeBoth("maya_hangup"), 1200);
+      }
     }
   });
 
@@ -441,6 +507,33 @@ export async function attachLiveSession(clientWs, { timezone } = {}) {
     closeBoth("gemini_error");
   });
 
+  // Hard 2-minute cap (API cost control): at 100s ask Gemini to wrap up with a
+  // one-line goodbye + end_call; at 120s force-close no matter what.
+  timeLimitTimer = setTimeout(() => {
+    try {
+      gemini.send(
+        JSON.stringify({
+          clientContent: {
+            turns: [
+              {
+                role: "user",
+                parts: [
+                  {
+                    text: "The call has reached its time limit. Say ONE short warm goodbye line (under 10 words) and immediately call the end_call tool.",
+                  },
+                ],
+              },
+            ],
+            turnComplete: true,
+          },
+        })
+      );
+    } catch {
+      /* ignore — hard stop is coming anyway */
+    }
+  }, 100_000);
+  hardStopTimer = setTimeout(() => closeBoth("max_duration"), 120_000);
+
   clientWs.on("message", (raw) => {
     let msg;
     try {
@@ -449,7 +542,8 @@ export async function attachLiveSession(clientWs, { timezone } = {}) {
       return;
     }
     if (msg.type === "audio" && msg.data) {
-      // Recording always gets everything; only the model is gated.
+      // Live monitor + recording always get everything; only the model is gated.
+      publish(call.id, "caller", msg.data, 16000);
       recorder.caller(msg.data);
       if (callerTurn || Date.now() < graceDeadline) {
         gateStats.audioForwarded++;

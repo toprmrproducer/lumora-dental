@@ -1,9 +1,22 @@
 export function downsampleTo16k(float32: Float32Array, inputRate: number): Int16Array {
-  const ratio = inputRate / 16000;
-  const outLen = Math.floor(float32.length / ratio);
+  if (!float32.length || !Number.isFinite(inputRate) || inputRate <= 0) {
+    return new Int16Array(0);
+  }
+  // Exact target length: round, never floor. floor() silently drops up to one
+  // sample per chunk, so the recorded stream runs short -> "chipmunk" playback.
+  const outLen = Math.round((float32.length * 16000) / inputRate);
   const out = new Int16Array(outLen);
+  const ratio = inputRate / 16000;
+  const last = float32.length - 1;
   for (let i = 0; i < outLen; i++) {
-    const sample = float32[Math.floor(i * ratio)] || 0;
+    // Linear interpolation between the two neighbouring input samples, so
+    // output samples are evenly spaced at a true 16 kHz regardless of whether
+    // the AudioContext opened at 44100, 48000, or any other rate.
+    const pos = i * ratio;
+    const i0 = pos >= last ? last : Math.floor(pos);
+    const i1 = i0 < last ? i0 + 1 : last;
+    const frac = i0 < last ? pos - i0 : 0;
+    const sample = float32[i0] + (float32[i1] - float32[i0]) * frac;
     const s = Math.max(-1, Math.min(1, sample));
     out[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
   }
