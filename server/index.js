@@ -233,7 +233,11 @@ app.use(
 );
 
 const server = http.createServer(app);
-const wss = new WebSocketServer({ server, path: "/ws/live" });
+// Two WSS instances on one HTTP server must use noServer + explicit upgrade
+// routing: path-filtered servers each call handleUpgrade for EVERY upgrade
+// and abort mismatches with HTTP 400 — injected straight into the other
+// path's upgraded socket, which killed every live call.
+const wss = new WebSocketServer({ noServer: true });
 
 wss.on("connection", (socket, req) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
@@ -263,7 +267,7 @@ function upgradeCookies(header) {
   return cookies;
 }
 
-const monitorWss = new WebSocketServer({ server, path: "/ws/monitor" });
+const monitorWss = new WebSocketServer({ noServer: true });
 
 monitorWss.on("connection", (socket, req) => {
   const session = auth.readSession({ cookies: upgradeCookies(req.headers.cookie) });
@@ -284,6 +288,17 @@ monitorWss.on("connection", (socket, req) => {
   // A socket that errors never emits close reliably; unsubscribing here keeps
   // the bus from writing into it. Double-unsubscribe is harmless.
   socket.on("error", unsubscribe);
+});
+
+server.on("upgrade", (req, socket, head) => {
+  const { pathname } = new URL(req.url, `http://${req.headers.host}`);
+  if (pathname === "/ws/live") {
+    wss.handleUpgrade(req, socket, head, (ws) => wss.emit("connection", ws, req));
+  } else if (pathname === "/ws/monitor") {
+    monitorWss.handleUpgrade(req, socket, head, (ws) => monitorWss.emit("connection", ws, req));
+  } else {
+    socket.destroy();
+  }
 });
 
 server.listen(PORT, () => {
