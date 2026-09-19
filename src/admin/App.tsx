@@ -157,6 +157,23 @@ export default function App() {
       setKeyError("Paste at least one key first.");
       return;
     }
+    await putKeys(body);
+    setGeminiKeyInput("");
+    setCalKeyInput("");
+  }
+
+  async function saveOne(field: "geminiApiKey" | "calApiKey") {
+    setKeyState("saving");
+    setKeyError("");
+    setKeySavedMsg("");
+    const value = (field === "geminiApiKey" ? geminiKeyInput : calKeyInput).trim();
+    if (!value) return;
+    await putKeys({ [field]: value });
+    if (field === "geminiApiKey") setGeminiKeyInput("");
+    else setCalKeyInput("");
+  }
+
+  async function putKeys(body: Record<string, string>) {
     const res = await api("/api/keys", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
@@ -169,11 +186,9 @@ export default function App() {
       return;
     }
     setKeys({ gemini: json.gemini, cal: json.cal });
-    setGeminiKeyInput("");
-    setCalKeyInput("");
     setKeyState("idle");
     setKeySavedMsg("Saved and validated — the next call uses it.");
-    window.setTimeout(() => setKeySavedMsg(""), 4000);
+    window.setTimeout(() => setKeySavedMsg(""), 6000);
   }
 
   useEffect(() => {
@@ -464,44 +479,63 @@ export default function App() {
       ) : tab === "keys" ? (
         <div className="px-5 pb-10 max-w-3xl space-y-5">
           <p className="text-sm text-muted">
-            Paste your keys here — they are validated live, stored server-side on the
-            platform volume, and used for every new call and booking. They are never
-            sent to the browser and never shown in full (only the last 4 characters).
+            Paste a key, press its Save button, and it is validated live against
+            Google / Cal.com, then stored server-side on the platform volume. Every new
+            call and booking uses the saved key immediately. Keys are never shown in
+            full — only the last 4 characters.
           </p>
-          {keySavedMsg ? <p className="text-sm text-booked">{keySavedMsg}</p> : null}
-          {keyError ? <p className="text-sm text-missed">{keyError}</p> : null}
+          {keySavedMsg ? (
+            <p className="text-sm text-booked">✓ {keySavedMsg}</p>
+          ) : null}
+          {keyError ? <p className="text-sm text-missed">✗ {keyError}</p> : null}
           <div className="rounded-xl border border-line bg-panel p-5">
             <div className="flex items-center justify-between mb-2">
               <h3 className="font-semibold">Google Gemini (voice agent)</h3>
               <KeyBadge status={keys?.gemini} />
             </div>
-            <input
-              type="password"
-              value={geminiKeyInput}
-              onChange={(e) => setGeminiKeyInput(e.target.value)}
-              placeholder="paste new AIza… key to replace"
-              className="w-full h-10 rounded-md bg-canvas border border-line px-3 font-mono text-sm"
-              autoComplete="off"
-            />
+            <div className="flex gap-2">
+              <input
+                type="password"
+                value={geminiKeyInput}
+                onChange={(e) => setGeminiKeyInput(e.target.value)}
+                placeholder="paste new AIza… key to replace"
+                className="flex-1 h-10 rounded-md bg-canvas border border-line px-3 font-mono text-sm"
+                autoComplete="off"
+              />
+              <Button
+                onClick={() => saveOne("geminiApiKey")}
+                disabled={keyState === "saving" || !geminiKeyInput.trim()}
+              >
+                {keyState === "saving" ? "Validating…" : "Save"}
+              </Button>
+            </div>
           </div>
           <div className="rounded-xl border border-line bg-panel p-5">
             <div className="flex items-center justify-between mb-2">
               <h3 className="font-semibold">Cal.com (calendar booking)</h3>
               <KeyBadge status={keys?.cal} />
             </div>
-            <input
-              type="password"
-              value={calKeyInput}
-              onChange={(e) => setCalKeyInput(e.target.value)}
-              placeholder="paste new cal_live_… key to replace"
-              className="w-full h-10 rounded-md bg-canvas border border-line px-3 font-mono text-sm"
-              autoComplete="off"
-            />
+            <div className="flex gap-2">
+              <input
+                type="password"
+                value={calKeyInput}
+                onChange={(e) => setCalKeyInput(e.target.value)}
+                placeholder="paste new cal_live_… key to replace"
+                className="flex-1 h-10 rounded-md bg-canvas border border-line px-3 font-mono text-sm"
+                autoComplete="off"
+              />
+              <Button
+                onClick={() => saveOne("calApiKey")}
+                disabled={keyState === "saving" || !calKeyInput.trim()}
+              >
+                {keyState === "saving" ? "Validating…" : "Save"}
+              </Button>
+            </div>
           </div>
-          <Button onClick={saveKeys} disabled={keyState === "saving"}>
-            <Save className="w-4 h-4 mr-1" />
-            {keyState === "saving" ? "Validating…" : "Save keys"}
-          </Button>
+          <p className="text-xs text-muted">
+            After saving, the badge above the box turns green: “saved via admin panel”.
+            That is your confirmation it is stored and live for the next call.
+          </p>
         </div>
       ) : tab === "prompt" ? (
         <div className="px-5 pb-10 max-w-4xl">
@@ -634,10 +668,13 @@ export default function App() {
 function KeyBadge({ status }: { status?: KeyStatus }) {
   if (!status) return <span className="text-xs text-muted">checking…</span>;
   if (!status.set) return <span className="text-xs text-missed">not set</span>;
+  if (status.source === "admin panel") {
+    return (
+      <span className="text-xs text-booked">✓ saved · via admin panel · …{status.tail}</span>
+    );
+  }
   return (
-    <span className="text-xs text-muted">
-      active · via {status.source} · …{status.tail}
-    </span>
+    <span className="text-xs text-muted">active · via {status.source} · …{status.tail}</span>
   );
 }
 
