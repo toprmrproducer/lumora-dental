@@ -281,6 +281,14 @@ export async function attachLiveSession(clientWs, { timezone } = {}) {
   const recorder = createRecorder();
   clientWs.send(JSON.stringify({ type: "ready", callId: call.id, model }));
 
+  // Noise gate (defense-in-depth vs. background-noise false triggers): raw mic
+  // audio only reaches Gemini while a caller turn is active. The recorder still
+  // captures every packet so the WAV stays complete either way.
+  let callerTurn = false;
+  let lastActivityEndAt = 0;
+  let graceDeadline = 0; // keep forwarding briefly after turn end (word tails)
+  const gateStats = { activityStarts: 0, audioForwarded: 0, audioSuppressed: 0 };
+
   const kickoff = {
     clientContent: {
       turns: [
@@ -302,6 +310,7 @@ export async function attachLiveSession(clientWs, { timezone } = {}) {
   const closeBoth = (reason) => {
     if (closed) return;
     closed = true;
+    console.log(`[maya] call ${call.id} gate stats`, gateStats);
     db.patchCall(call.id, {
       status: "completed",
       endedAt: new Date().toISOString(),
@@ -440,17 +449,23 @@ export async function attachLiveSession(clientWs, { timezone } = {}) {
       return;
     }
     if (msg.type === "audio" && msg.data) {
+      // Recording always gets everything; only the model is gated.
       recorder.caller(msg.data);
-      gemini.send(
-        JSON.stringify({
-          realtimeInput: {
-            audio: {
-              data: msg.data,
-              mimeType: "audio/pcm;rate=16000",
+      if (callerTurn || Date.now() < graceDeadline) {
+        gateStats.audioForwarded++;
+        gemini.send(
+          JSON.stringify({
+            realtimeInput: {
+              audio: {
+                data: msg.data,
+                mimeType: "audio/pcm;rate=16000",
+              },
             },
-          },
-        })
-      );
+          })
+        );
+      } else {
+        gateStats.audioSuppressed++;
+      }
     }
     if (msg.type === "text" && msg.text) {
       gemini.send(JSON.stringify({ realtimeInput: { text: String(msg.text).slice(0, 500) } }));
@@ -477,12 +492,21 @@ export async function attachLiveSession(clientWs, { timezone } = {}) {
       );
     }
     if (msg.type === "activity_start") {
+      gateStats.activityStarts++;
+      // Debounce double-fires right after a turn just ended.
+      if (Date.now() - lastActivityEndAt < 800) return;
+      callerTurn = true;
       gemini.send(JSON.stringify({ realtimeInput: { activityStart: {} } }));
     }
     if (msg.type === "activity_end") {
       gemini.send(JSON.stringify({ realtimeInput: { activityEnd: {} } }));
+      callerTurn = false;
+      lastActivityEndAt = Date.now();
+      graceDeadline = Date.now() + 350;
     }
     if (msg.type === "barge_in") {
+      // Caller is interrupting: reopen the audio gate immediately.
+      callerTurn = true;
       // Browser playback has already stopped. Audio packets continue immediately,
       // so Gemini's server-side VAD receives the interruption and cancels its turn.
       try {

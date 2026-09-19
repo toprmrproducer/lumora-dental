@@ -366,7 +366,7 @@ export default function App() {
         {(
           [
             ["calls", "Voice calls"],
-            ["crm", "Shreyas CRM"],
+            ["crm", "CRM"],
             ["calendar", "Cal.com bookings"],
             ["prompt", "Maya's prompt"],
             ["keys", "API keys"],

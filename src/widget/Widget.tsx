@@ -18,6 +18,10 @@ export function Widget() {
   const bargeFramesRef = useRef(0);
   const silenceFramesRef = useRef(0);
   const callerSpeakingRef = useRef(false);
+  const mayaTurnRef = useRef(false);
+  const lastHerAudioAtRef = useRef(0);
+  const ambientRef = useRef(0.012);
+  const speechFramesRef = useRef(0);
   const suppressAudioUntilRef = useRef(0);
 
   useEffect(() => {
@@ -122,12 +126,18 @@ export function Widget() {
         const next = Math.min(rms * 6, 1);
         const mayaLevel = Number.isFinite(player.level) ? Math.min(player.level, 1) : 0;
         levelRef.current = Math.max(levelRef.current * 0.6, next, mayaLevel);
-        // HALF-DUPLEX GUARD: while Maya is speaking, her microphone feed is
-        // NOT forwarded — room noise, breath and speaker echo can reach the
-        // model, whose VAD then cancels her turn (the "repeated greeting"
-        // bug). Only a genuinely loud, sustained voice (3 frames above the
-        // barge threshold) may interrupt her.
-        if (player.isPlaying()) {
+        // HALF-DUPLEX GUARD: the gate stays closed while it is Maya's turn —
+        // either she is audible right now, or her turn is still warm (<4s
+        // since her last audio packet, which covers the pauses between her
+        // sentences where the old isPlaying()-only gate let desk taps read as
+        // a caller turn). Her microphone feed is NEVER forwarded during her
+        // turn — room noise, breath and speaker echo would reach the model,
+        // whose VAD then cancels her turn. Only a genuinely loud, sustained
+        // voice (3 frames above the barge threshold) may interrupt her.
+        const herTurn =
+          player.isPlaying() ||
+          (mayaTurnRef.current && Date.now() - lastHerAudioAtRef.current < 4000);
+        if (herTurn) {
           if (rms > 0.12) {
             bargeFramesRef.current += 1;
             if (bargeFramesRef.current === 3) {
@@ -137,32 +147,57 @@ export function Widget() {
               ws.send(JSON.stringify({ type: "barge_in" }));
               callerSpeakingRef.current = true;
               silenceFramesRef.current = 0;
+              mayaTurnRef.current = false;
               ws.send(JSON.stringify({ type: "activity_start" }));
             }
           } else {
             bargeFramesRef.current = 0;
           }
+          speechFramesRef.current = 0;
           return;
         }
 
-        // Maya is quiet: noise-gated caller VAD. Breath/fan noise (~0.03 RMS)
-        // must not read as speech — real talk is well above 0.06 here.
-        if (rms > 0.06 && !callerSpeakingRef.current) {
-          callerSpeakingRef.current = true;
-          silenceFramesRef.current = 0;
-          ws.send(JSON.stringify({ type: "activity_start" }));
-        } else if (callerSpeakingRef.current && rms < 0.025) {
+        // Maya is quiet: adaptive noise-gated caller VAD. The floor tracks
+        // quiet frames (breath/fan hum) so the thresholds ride the room —
+        // speech must clear 3x ambient (>=0.07) and silence sits below 1.5x
+        // ambient (>=0.025).
+        const startThresh = Math.max(0.07, ambientRef.current * 3);
+        const silenceThresh = Math.max(0.025, ambientRef.current * 1.5);
+        if (!callerSpeakingRef.current) {
+          // Sustained-energy requirement: 3 consecutive frames (~255ms) above
+          // startThresh — single taps, puffs and door thumps never qualify.
+          if (rms > startThresh) {
+            speechFramesRef.current += 1;
+            if (speechFramesRef.current >= 3) {
+              callerSpeakingRef.current = true;
+              silenceFramesRef.current = 0;
+              ws.send(JSON.stringify({ type: "activity_start" }));
+            }
+          } else {
+            speechFramesRef.current = 0;
+            // Quiet frame: fold it into the rolling noise-floor estimate.
+            ambientRef.current = ambientRef.current * 0.95 + rms * 0.05;
+          }
+        } else if (rms < silenceThresh) {
           silenceFramesRef.current += 1;
-          if (silenceFramesRef.current >= 12) {
+          // ~1.9s of true silence before the turn counts as over. Mid-sentence
+          // thinking pauses must NOT hand the turn to Maya — she would start
+          // replying over an unfinished sentence.
+          if (silenceFramesRef.current >= 22) {
             callerSpeakingRef.current = false;
             silenceFramesRef.current = 0;
+            speechFramesRef.current = 0;
             ws.send(JSON.stringify({ type: "activity_end" }));
           }
-        } else if (rms >= 0.025) {
+        } else {
           silenceFramesRef.current = 0;
         }
-        const pcm = downsampleTo16k(input, rec.sampleRate);
-        ws.send(JSON.stringify({ type: "audio", data: int16ToBase64(pcm) }));
+        // Between turns raw noise never reaches Gemini: the mic feed is only
+        // forwarded while the caller is inside an open speech turn.
+        if (callerSpeakingRef.current) {
+          const pcm = downsampleTo16k(input, rec.sampleRate);
+          ws.send(JSON.stringify({ type: "audio", data: int16ToBase64(pcm) }));
+        }
       };
 
       ws.onmessage = (ev) => {        const msg = JSON.parse(ev.data);
@@ -171,12 +206,22 @@ export function Widget() {
           setStatus("Maya just picked up. Go ahead, talk like you would on the phone.");
         }
         if (msg.type === "audio") {
+          // Maya-turn tracking: her first packet after ready/turnComplete
+          // opens her turn; every packet refreshes the freshness stamp that
+          // keeps the mic gate shut through her between-sentence pauses.
+          lastHerAudioAtRef.current = Date.now();
+          mayaTurnRef.current = true;
           if (Date.now() < suppressAudioUntilRef.current) return;
           const rate = /rate=(\d+)/.exec(msg.mimeType || "")?.[1];
           player.enqueue(base64ToInt16(msg.data), rate ? Number(rate) : 24000);
           levelRef.current = Math.max(levelRef.current, 0.55);
         }
+        if (msg.type === "turnComplete") {
+          mayaTurnRef.current = false;
+          speechFramesRef.current = 0;
+        }
         if (msg.type === "interrupted") {
+          mayaTurnRef.current = false;
           player.interrupt();
           suppressAudioUntilRef.current = Date.now() + 250;
           setStatus("I’m listening.");
